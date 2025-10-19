@@ -23,7 +23,8 @@ export const useWS = create((set) => ({
   },
   send: (message) => {
     set((state) => {
-      state.client?.send(message);
+      const json = JSON.stringify(message);
+      state.client?.send(json);
       return state;
     }, false);
   }

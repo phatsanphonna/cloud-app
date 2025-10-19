@@ -1,17 +1,20 @@
-import { Elysia, t } from "elysia";
-import { node } from "@elysiajs/node";
+import { Elysia } from "elysia";
 import { wallet } from "./route/wallet.js";
+import { WSType } from "./model.js";
 
-new Elysia({ adapter: node() })
+const users = new Set();
+
+new Elysia()
   .use(wallet)
   .ws("/ws", {
-    body: t.Object({
-      type: t.String(),
-      payload: t.Optional(t.Any()),
-    }),
+    body: WSType,
+    open(ws) {
+      users.add(ws.id);
+    },
     message(ws, { type, payload }) {
-      console.log("Received:", payload);
-      ws.send(payload);
+      // console.log("Received:", type, payload);
+      ws.send({ type, payload });
+      console.log(users)
     },
   })
   .get("/", () => "Hello Elysia")
