@@ -2,20 +2,25 @@
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useWS, useWSMessage, useWSSend } from '@/lib/ws'
+import { joinWSGame, useWSMessage, useWSSend } from '@/lib/ws'
 import { LogInIcon } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useState } from 'react'
+import { joinGame } from './actions'
 
 const Operation: FC = () => {
   const [joinRoomOpen, setJoinRoomOpen] = useState(false)
   const [roomCode, setRoomCode] = useState('')
-  const send = useWSSend()
   const [message] = useWSMessage()
 
-  const joinRoom = () => {
-    send({ type: 'join', payload: { roomCode } })
-    console.log(message)
+  const joinRoom = async () => {
+    try {
+      const { } = await joinGame(roomCode)
+
+      joinWSGame(roomCode)
+    } catch (error) {
+      console.error("Failed to join game:", error)
+    }
   }
 
   return (

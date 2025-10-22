@@ -8,3 +8,7 @@ const WSJoinType = t.Object({
 })
 
 export const WSType = t.Union([WSJoinType])
+
+export const WSParamsType = t.Object({
+  id: t.String()
+})

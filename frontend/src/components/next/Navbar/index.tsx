@@ -1,41 +1,35 @@
 'use client'
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { useWSReady } from "@/lib/ws"
-import * as motion from "framer-motion/client"
-import { Wallet, WifiIcon, WifiOffIcon } from "lucide-react"
-import Link from "next/link"
-import { FC } from "react"
-
-const onlineBadgeAnimation = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  transition: { duration: 0.5 },
-}
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { useUser } from "@/lib/user";
+import { avataaarsNeutral  } from '@dicebear/collection';
+import { createAvatar } from '@dicebear/core';
+import { Coins, Wallet } from "lucide-react";
+import Link from "next/link";
+import { FC, useMemo } from "react";
 
 const Navbar: FC = () => {
-  const [ready] = useWSReady();
+  const [user] = useUser()
+
+  const avatar = useMemo(() => {
+    return createAvatar(avataaarsNeutral, {
+      size: 128,
+    }).toDataUri();
+  }, []);
 
   return (
     <div className="h-14 w-full rounded-full p-2 flex items-center justify-between">
-      {ready ? (
-        <motion.div {...onlineBadgeAnimation}>
-          <Badge className="bg-green-500"><WifiIcon />Online</Badge>
-        </motion.div>
-      ) : (
-        <motion.div {...onlineBadgeAnimation}>
-          <Badge className=" bg-red-500"><WifiOffIcon />Offline</Badge>
-        </motion.div>
+      {user && (
+        <>
+          <Link href='/topup' className="flex"><Coins className="mr-1" />{user.money}</Link>
+
+          <div className="flex items-center gap-2">
+            <Avatar className="shadow bg-white">
+              <AvatarImage src={avatar} />
+            </Avatar>
+          </div>
+        </>
       )}
-
-      <div className="flex gap-2 items-center">
-        <Link href='/topup' className="flex"><Wallet className="mr-1" />50</Link>
-
-        <Avatar className="shadow">
-          <AvatarFallback>CN</AvatarFallback>
-        </Avatar>
-      </div>
     </div>
   )
 }

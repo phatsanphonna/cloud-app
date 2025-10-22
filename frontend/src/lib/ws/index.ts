@@ -1,24 +1,20 @@
 import { atom, useAtom } from "jotai";
-import WSConnector from "./Connector";
 
 /** Public hook: returns a type-safe send() */
 type WSMessage = { type: string; payload?: unknown };
 
 const wsMessage = atom<WSMessage | null>(null);
 const wsClient = atom<WebSocket | null>(null);
-const wsReady = atom<boolean>(false);
 
 export const useWSMessage = () => useAtom(wsMessage);
 export const useWSClient = () => useAtom(wsClient);
-export const useWSReady = () => useAtom(wsReady);
 export const useWSSend = () => {
   const [client] = useWSClient();
-  const [ready] = useWSReady();
 
   function send(msg: WSMessage) {
     const frame = typeof msg === "string" ? (msg as unknown as string) : JSON.stringify(msg);
 
-    if (client && client.readyState === WebSocket.OPEN && ready) {
+    if (client) {
       client.send(frame);
     }
   }
@@ -26,4 +22,25 @@ export const useWSSend = () => {
   return send;
 }
 
-export { WSConnector };
+export const joinWSGame = (roomCode: string) => {
+  const [, setWS] = useWSClient(); // eslint-disable-line
+  const [, setMessage] = useWSMessage(); // eslint-disable-line
+
+  const client = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/games/${roomCode}`);
+  client.addEventListener('open', () => {
+    setWS(client);
+    console.log('Game joined:', roomCode);
+  });
+
+
+  client.addEventListener('close', () => {
+    console.log("WebSocket Client Disconnected");
+    setWS(null);
+  });
+
+  client.addEventListener('message', (message) => {
+    console.log("WebSocket Message Received:", message.data);
+    setMessage(JSON.parse(message.data));
+  });
+}
+

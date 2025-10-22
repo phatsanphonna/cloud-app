@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -43,11 +49,11 @@
   --radius-xl: calc(var(--radius) + 4px);
   --animate-aurora: aurora 5s linear infinite;
   @keyframes aurora {
-  from {
-    backgroundPosition: 50% 50%, 50% 50%;
+    from {
+      backgroundposition: 50% 50%, 50% 50%;
     }
-  to {
-    backgroundPosition: 350% 50%, 350% 50%;
+    to {
+      backgroundposition: 350% 50%, 350% 50%;
     }
   }
 }

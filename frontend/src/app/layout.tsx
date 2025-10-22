@@ -4,7 +4,7 @@ import { Mali } from "next/font/google";
 import './globals.css';
 import { AuroraBackground } from "@/components/ui/shadcn-io/aurora-background";
 import Navbar from "@/components/next/Navbar";
-import { WSConnector } from "@/lib/ws";
+import { UserProvider } from "@/lib/user";
 
 const mali = Mali({
   subsets: ["latin", 'thai'],
@@ -25,14 +25,14 @@ export default function RootLayout({
       <body
         className={`${mali.className} antialiased`}
       >
-        <WSConnector>
+        <UserProvider>
           <AuroraBackground>
             <div className="grid grid-rows-[auto_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 w-full relative z-10">
               <Navbar />
               {children}
             </div>
           </AuroraBackground>
-        </WSConnector>
+        </UserProvider>
       </body>
     </html>
   );
