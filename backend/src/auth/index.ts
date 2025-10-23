@@ -66,7 +66,7 @@ export const auth = new Elysia({
       username: t.String(),
     })
   })
-  .post("/login", async ({ jwt, body: { username }, status }) => {
+  .post("/signin", async ({ jwt, body: { username }, status }) => {
     const { Item } = await getUserByUsername(username);
 
     if (!Item) {

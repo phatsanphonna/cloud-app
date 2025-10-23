@@ -7,6 +7,8 @@ import { db } from "./database.js";
 import { WSParamsType, WSType } from "./model.js";
 import { user } from "./user/index.js";
 import { wallet } from "./wallet/index.js";
+import { game } from "./game/index.js";
+import { getGameRoomById } from "./game/query.js";
 
 const users = new Set();
 
@@ -16,28 +18,33 @@ new Elysia()
   .use(auth)
   .use(user)
   .use(wallet)
+  .use(game)
   .ws("/ws/games/:id", {
     body: WSType,
     params: WSParamsType,
-    async open(ws) {
-      const id = ws.data.params.id;
+    async open({ data, send, close }) {
+      try {
+        const id = data.params.id;          // <- get route param safely
+        const { Item } = await getGameRoomById(id);
 
-      const command = new GetItemCommand({
-        TableName: "GameRooms",
-        Key: {
-          id: { S: id },
-        },
-      });
+        if (!Item) {
+          // either just close:
+          // ws.close(1000, "Game room not found");
+          // or send an error then close:
+          send({ type: "error", payload: { message: "Game room not found" } });
+          close(1000, "Game room not found");
+          return;
+        }
 
-      const result = await db.send(command);
-
-      if (!result.Item) {
-        ws.close(1000, "Game room not found");
-        return ws.send({ type: "error", payload: { message: "Game room not found" } });
+        send({ type: "lobby", payload: { message: `Connected to game room ${id}` } });
+      } catch (err) {
+        console.error(err);
+        send({ type: "error", payload: { message: "Internal error" } });
+        close(1011, "Internal error");
       }
     },
-    async message(ws, { type, payload }) {
-      ws.send({ type, payload });
+    async message({ send }, { type, payload }) {
+      send({ type, payload });
       console.log(users);
     },
   })

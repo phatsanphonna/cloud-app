@@ -5,6 +5,7 @@ import './globals.css';
 import { AuroraBackground } from "@/components/ui/shadcn-io/aurora-background";
 import Navbar from "@/components/next/Navbar";
 import { UserProvider } from "@/lib/user";
+import { Toaster } from "@/components/ui/sonner"
 
 const mali = Mali({
   subsets: ["latin", 'thai'],
@@ -33,6 +34,7 @@ export default function RootLayout({
             </div>
           </AuroraBackground>
         </UserProvider>
+        <Toaster position="top-center" />
       </body>
     </html>
   );

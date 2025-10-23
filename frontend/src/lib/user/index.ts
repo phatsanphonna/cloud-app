@@ -1,7 +1,8 @@
 import { atom, useAtom } from "jotai";
 import UserProvider from "./Provider";
+export { AuthProvider, NoAuthProvider } from "./AuthProvider";
 
-interface User {
+export interface User {
   id: string;
   username: string;
   money: number;

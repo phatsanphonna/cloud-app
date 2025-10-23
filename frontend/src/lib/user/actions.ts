@@ -25,7 +25,7 @@ export const getMe = async () => {
   }
 }
 
-export const logout = () => {
+export const signOut = () => {
   localStorage.removeItem("token");
   window.location.reload();
 }

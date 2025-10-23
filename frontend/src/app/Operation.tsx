@@ -2,22 +2,58 @@
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { joinWSGame, useWSMessage, useWSSend } from '@/lib/ws'
+import { joinWSGame, useWSClient, useWSMessage, useWSSend } from '@/lib/ws'
 import { LogInIcon } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useState } from 'react'
 import { joinGame } from './actions'
+import { toast } from 'sonner'
+import { useGameState } from '@/lib/gameplay'
+import { useRouter } from 'next/navigation'
 
 const Operation: FC = () => {
+  const router = useRouter()
+
   const [joinRoomOpen, setJoinRoomOpen] = useState(false)
   const [roomCode, setRoomCode] = useState('')
-  const [message] = useWSMessage()
+  const [, setMessage] = useWSMessage()
+  const [, setWS] = useWSClient()
+  const [, setGameState] = useGameState()
 
   const joinRoom = async () => {
     try {
-      const { } = await joinGame(roomCode)
+      const { status, data } = await joinGame(roomCode)
 
-      joinWSGame(roomCode)
+      if (status !== 200) {
+        toast.error("Failed to join game room.")
+        return
+      }
+
+      const { gameId } = data
+
+      const client = joinWSGame(gameId)
+
+      client.addEventListener('open', () => {
+        console.log('Game joined:', gameId);
+      });
+
+
+      client.addEventListener('close', () => {
+        console.log("WebSocket Client Disconnected");
+        setWS(null);
+      });
+
+      client.addEventListener('message', ({ data }) => {
+        console.log("WebSocket Message Received:", data);
+        data = JSON.parse(data);
+
+        setMessage(data);
+        setGameState(data.type);
+      });
+
+      setWS(client)
+
+      router.push(`/game`)
     } catch (error) {
       console.error("Failed to join game:", error)
     }

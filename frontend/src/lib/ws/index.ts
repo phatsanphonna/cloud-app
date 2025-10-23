@@ -22,25 +22,7 @@ export const useWSSend = () => {
   return send;
 }
 
-export const joinWSGame = (roomCode: string) => {
-  const [, setWS] = useWSClient(); // eslint-disable-line
-  const [, setMessage] = useWSMessage(); // eslint-disable-line
-
-  const client = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/games/${roomCode}`);
-  client.addEventListener('open', () => {
-    setWS(client);
-    console.log('Game joined:', roomCode);
-  });
-
-
-  client.addEventListener('close', () => {
-    console.log("WebSocket Client Disconnected");
-    setWS(null);
-  });
-
-  client.addEventListener('message', (message) => {
-    console.log("WebSocket Message Received:", message.data);
-    setMessage(JSON.parse(message.data));
-  });
+export const joinWSGame = (id: string) => {
+  return new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/games/${id}`);
 }
 
