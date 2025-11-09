@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { AuthService } from "../auth";
-import { getUserByUUID } from "../auth/query";
+import { getUserByUUID, getUserByCognitoSub } from "../auth/query";
 
 export const user = new Elysia({
   prefix: "/users",
@@ -16,6 +16,7 @@ export const user = new Elysia({
     return {
       id: Item.id!.S,
       username: Item.username!.S,
+      email: Item.email?.S,
       money: Number(Item.money!.N),
       profilePicture: Item.profilePicture!.S,
     };

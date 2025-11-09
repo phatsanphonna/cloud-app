@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Mali } from "next/font/google";
-// @ts-expect-error: CSS side-effect import has no type declarations
 import './globals.css';
 import { AuroraBackground } from "@/components/ui/shadcn-io/aurora-background";
 import Navbar from "@/components/next/Navbar";

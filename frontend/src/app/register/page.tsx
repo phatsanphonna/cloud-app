@@ -9,11 +9,16 @@ import Link from "next/link"
 import BackButton from "@/components/next/BackButton"
 import { useState } from "react"
 import { toast } from "sonner"
-import { register } from "./actions"
+import { register, registerWithCognito } from "./actions"
+import { useRouter } from "next/navigation"
 
 const RegisterPage: NextPage = () => {
   const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
+  const [useCognito, setUseCognito] = useState(true)
+  const router = useRouter()
 
   const handleRegister = async () => {
     if (!username) {
@@ -21,11 +26,40 @@ const RegisterPage: NextPage = () => {
       return;
     }
 
-    setLoading(true);
-    const { message } = await register(username);
+    if (useCognito && !password) {
+      toast.error("Password is required");
+      return;
+    }
 
-    if (message) {
-      toast(message);
+    if (useCognito && !email) {
+      toast.error("Email is required for Cognito registration");
+      return;
+    }
+
+    setLoading(true);
+    
+    let result;
+    if (useCognito) {
+      result = await register(username, password, email);
+    } else {
+      result = await register(username, password);
+    }
+
+    console.log("Registration result:", result); // Debug log
+
+    if (result?.message) {
+      if (result.status >= 400) {
+        toast.error(result.message);
+      } else {
+        toast.success(result.message);
+        
+        // If Cognito registration successful, redirect to confirm page
+        if (useCognito && result.requiresConfirmation) {
+          setTimeout(() => {
+            router.push(`/confirm?username=${encodeURIComponent(username)}&email=${encodeURIComponent(email)}`);
+          }, 1000);
+        }
+      }
     }
     setLoading(false);
   }
@@ -38,6 +72,16 @@ const RegisterPage: NextPage = () => {
       </h3>
 
       <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="useCognito"
+            checked={useCognito}
+            onChange={(e) => setUseCognito(e.target.checked)}
+          />
+          <Label htmlFor="useCognito">Use Cognito Authentication</Label>
+        </div>
+
         <Label htmlFor='username'>Username</Label>
         <Input
           id='username'
@@ -45,9 +89,39 @@ const RegisterPage: NextPage = () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        <Button onClick={handleRegister} disabled={loading || !username}>
+        
+        {useCognito && (
+          <>
+            <Label htmlFor='password'>Password</Label>
+            <Input
+              id='password'
+              type="password"
+              placeholder="Your password (min 8 chars, include numbers)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            
+            <Label htmlFor='email'>Email <span className="text-red-500">*</span></Label>
+            <Input
+              id='email'
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required={useCognito}
+            />
+            
+            {email && (
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                A confirmation code will be sent to this email address.
+              </p>
+            )}
+          </>
+        )}
+        
+        <Button onClick={handleRegister} disabled={loading || !username || (useCognito && (!password || !email))}>
           {loading && <Spinner />}
-          Register
+          Register {useCognito ? "with Cognito" : ""}
         </Button>
       </div>
       <Link href='/signin' className={buttonVariants({ variant: 'outline' })}>
