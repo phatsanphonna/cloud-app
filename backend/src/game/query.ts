@@ -1,6 +1,7 @@
-import { GetItemCommand, QueryCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { BatchGetItemCommand, GetItemCommand, QueryCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { db } from "../database";
-import type { LobbyInfo } from "./model";
+import type { LobbyInfo, LobbyUser } from "./model";
 
 export const getGameByRoomCode = async (roomCode: string) => {
   const command = new QueryCommand({
@@ -33,11 +34,12 @@ export const addUserToGameRoom = async (gameId: string, userId: string) => {
     Key: {
       id: { S: gameId },
     },
-    UpdateExpression: "ADD players :p",
+    UpdateExpression: "SET players = list_append(if_not_exists(players, :emptyList), :newPlayer)",
     ExpressionAttributeValues: {
-      ":p": { SS: [userId] },
+      ":emptyList": { L: [] },
+      ":newPlayer": { L: [{ S: userId }] },
     },
-    ReturnValues: "UPDATED_NEW",
+    ReturnValues: "ALL_NEW",
   });
   return await db.send(command);
 }
@@ -109,9 +111,9 @@ export const getLobbyInfo = async (gameId: string): Promise<LobbyInfo | null> =>
   // 4) Return combined lobby info
   return {
     id: game.id,
-    title: game.title,
-    type: game.type,
-    roomCode: game.roomCode,
+    title: game.title || '',
+    type: game.type || '',
+    roomCode: game.roomCode || '',
     users,
   };
 };

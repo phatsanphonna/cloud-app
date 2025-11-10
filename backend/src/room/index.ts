@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { RoomModel } from "./model";
 import { auth } from "../auth";
-import { createRoom, getRoom, joinRoom, leaveRoom, setRoom, startGame } from "./query";
+import { createRoom, getRoom, getRoomByCode, joinRoom, leaveRoom, setRoom, startGame } from "./query";
 import { getUserByUUID } from "../auth/query";
 
 let countdowns: Record<string, NodeJS.Timeout> = {};
@@ -36,11 +36,32 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
         throw new Error("Unauthorized");
       }
       const room = await createRoom(user.id, body.minPlayer);
+      console.log("Created room:", room);
       return room;
     },
     {
       body: t.Object({
         minPlayer: t.Numeric(),
+      }),
+    }
+  )
+  .post(
+    "/join",
+    async ({ body, user }) => {
+      if (!user) {
+        throw new Error("Unauthorized");
+      }
+      console.log("Searching for room with code:", body.roomCode);
+      const room = await getRoomByCode(body.roomCode);
+      console.log("Found room:", room);
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      return { message: "Room found", roomId: room.id, roomCode: room.roomCode };
+    },
+    {
+      body: t.Object({
+        roomCode: t.String(),
       }),
     }
   )
@@ -80,6 +101,7 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
         await joinRoom(id, user.id);
         const room = await getRoom(id);
 
+        console.log(`User ${user.name} (${user.id}) subscribing to room:${id}`);
         ws.subscribe(`room:${id}`);
         
         // Send initial room state to the connecting user
@@ -91,32 +113,46 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
         
         // Check if room is full and start countdown
         if (room && room.players.length >= room.minPlayer && room.status === "waiting") {
-          await startGame(id);
-          let countdown = 5;
+          console.log(`Room ${id} is now full (${room.players.length}/${room.minPlayer}), starting countdown...`);
           
+          // Clear any existing countdown for this room
           if (countdowns[id]) {
+            console.log(`Clearing existing countdown for room ${id}`);
             clearInterval(countdowns[id]);
           }
           
-          countdowns[id] = setInterval(() => {
-            ws.publish(
-              `room:${id}`,
-              JSON.stringify({ 
+          await startGame(id);
+          
+          // Add a small delay before starting countdown to let all connections settle
+          setTimeout(() => {
+            let countdown = 5;
+            console.log(`Starting countdown for room ${id} from ${countdown}`);
+            
+            countdowns[id] = setInterval(() => {
+              console.log(`Publishing countdown ${countdown} to room:${id}`);
+              const countdownMessage = JSON.stringify({ 
                 type: "countdown", 
                 countdown, 
                 message: `Game starting in ${countdown} seconds` 
-              })
-            );
-            countdown--;
-            if (countdown < 0) {
-              clearInterval(countdowns[id]);
-              delete countdowns[id];
-              ws.publish(
-                `room:${id}`, 
-                JSON.stringify({ type: "game_start", message: "Game started!" })
-              );
-            }
-          }, 1000);
+              });
+              
+              // Send to all subscribers AND the current connection
+              ws.publish(`room:${id}`, countdownMessage);
+              ws.send(countdownMessage);
+              
+              countdown--;
+              if (countdown < 0) {
+                clearInterval(countdowns[id]);
+                delete countdowns[id];
+                console.log(`🎮 Publishing GAME START message to room:${id}`);
+                const gameStartMessage = JSON.stringify({ type: "game_start", message: "Game started!" });
+                
+                // Send to all subscribers AND the current connection
+                ws.publish(`room:${id}`, gameStartMessage);
+                ws.send(gameStartMessage);
+              }
+            }, 1000);
+          }, 500); // 500ms delay
         }
 
         // Notify other users about the new player
@@ -128,31 +164,51 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
             message: `${user.name} joined the room`,
           })
         );
+        
+        console.log(`Successfully completed join process for user ${user.name} in room ${id}`);
       } catch (error) {
         console.error("WebSocket open error:", error);
+        if (error instanceof Error) {
+          console.error("Error details:", { message: error.message, stack: error.stack });
+        }
         ws.close(1011, "Internal error");
       }
     },
     async close(ws) {
       try {
+        console.log('WebSocket closing...');
         const { id } = ws.data.params;
         const protocol = ws.data.headers['sec-websocket-protocol'];
-        if (!protocol) return;
+        if (!protocol) {
+          console.log('Close: No protocol header');
+          return;
+        }
 
         const token = protocol.split(",").map(s => s.trim())[1];
-        if (!token) return;
+        if (!token) {
+          console.log('Close: No token found');
+          return;
+        }
 
         const payload = await ws.data.jwt.verify(token.replace("Bearer ", ""));
-        if (!payload) return;
+        if (!payload) {
+          console.log('Close: Invalid token payload');
+          return;
+        }
 
         const { Item } = await getUserByUUID(payload.uuid);
-        if (!Item || !Item.id?.S || !Item.username?.S) return;
+        if (!Item || !Item.id?.S || !Item.username?.S) {
+          console.log('Close: User not found in database');
+          return;
+        }
 
         const user = { id: Item.id.S, name: Item.username.S };
+        console.log(`Processing close for user ${user.name} (${user.id}) in room ${id}`);
 
         await leaveRoom(id, user.id);
         const room = await getRoom(id);
         
+        console.log(`User ${user.name} (${user.id}) unsubscribing from room:${id}`);
         ws.unsubscribe(`room:${id}`);
         ws.publish(
           `room:${id}`,
@@ -162,8 +218,12 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
             message: `${user.name} left the room`,
           })
         );
+        console.log(`Successfully processed close for user ${user.name}`);
       } catch (error) {
         console.error("WebSocket close error:", error);
+        if (error instanceof Error) {
+          console.error("Close error details:", { message: error.message, stack: error.stack });
+        }
       }
     },
     async message(ws, message) {
@@ -240,22 +300,27 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
             }
             
             countdowns[id] = setInterval(() => {
-              ws.publish(
-                `room:${id}`,
-                JSON.stringify({ 
-                  type: "countdown", 
-                  countdown, 
-                  message: `Game starting in ${countdown} seconds` 
-                })
-              );
+              console.log(`Manual countdown ${countdown} for room:${id}`);
+              const countdownMessage = JSON.stringify({ 
+                type: "countdown", 
+                countdown, 
+                message: `Game starting in ${countdown} seconds` 
+              });
+              
+              // Send to all subscribers AND the current connection
+              ws.publish(`room:${id}`, countdownMessage);
+              ws.send(countdownMessage);
+              
               countdown--;
               if (countdown < 0) {
                 clearInterval(countdowns[id]);
                 delete countdowns[id];
-                ws.publish(
-                  `room:${id}`, 
-                  JSON.stringify({ type: "game_start", message: "Game started!" })
-                );
+                console.log(`🎮 Publishing MANUAL GAME START message to room:${id}`);
+                const gameStartMessage = JSON.stringify({ type: "game_start", message: "Game started!" });
+                
+                // Send to all subscribers AND the current connection
+                ws.publish(`room:${id}`, gameStartMessage);
+                ws.send(gameStartMessage);
               }
             }, 1000);
           } else {

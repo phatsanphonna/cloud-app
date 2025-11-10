@@ -10,6 +10,7 @@ import { joinGame } from './actions'
 import { toast } from 'sonner'
 import { useGameRoomId, useGameState } from '@/lib/gameplay'
 import { useRouter } from 'next/navigation'
+import { joinRoom as joinRoomAction } from './actions'
 
 const Operation: FC = () => {
   const router = useRouter()
@@ -23,42 +24,36 @@ const Operation: FC = () => {
 
   const joinRoom = async () => {
     try {
-      const { status, data } = await joinGame(roomCode)
+      const { status, data } = await joinRoomAction(roomCode)
+
+      console.log("Join room response:", { status, data })
 
       if (status !== 200) {
-        toast.error("Failed to join game room.")
+        if (status === 401) {
+          toast.error("Please sign in to join a room.")
+          router.push('/signin')
+          return
+        }
+        if (status === 404) {
+          toast.error("Room not found. Please check the room code.")
+          return
+        }
+        console.error("Failed to join room:", data)
+        toast.error(data?.message || "Failed to join room.")
         return
       }
 
-      const { gameId } = data
+      if (!data?.roomId) {
+        console.error("No room ID returned:", data)
+        toast.error("Invalid response from server.")
+        return
+      }
 
-      const client = joinWSGame(gameId)
-
-      client.addEventListener('open', () => {
-        setGameId(gameId)
-      });
-
-
-      client.addEventListener('close', () => {
-        console.log("WebSocket Client Disconnected");
-        setWS(null);
-        setGameState("none");
-        setGameId("");
-      });
-
-      client.addEventListener('message', ({ data }) => {
-        console.log("WebSocket Message Received:", data);
-        data = JSON.parse(data);
-
-        setMessage(data);
-        setGameState(data.type);
-      });
-
-      setWS(client)
-
-      router.push(`/game`)
+      // Redirect to the room page
+      router.push(`/room/${data.roomId}`)
     } catch (error) {
-      console.error("Failed to join game:", error)
+      console.error("Failed to join room:", error)
+      toast.error("Failed to join room.")
     }
   }
 
@@ -86,16 +81,14 @@ const Operation: FC = () => {
         </Button>
       )}
 
-      {!joinRoomOpen && (
-        <Link
-          href="/create-room"
-          className={buttonVariants({
-            variant: 'outline',
-          })}
-        >
-          Create Room
-        </Link>
-      )}
+      <Link
+        href="/create-room"
+        className={buttonVariants({
+          variant: 'outline',
+        })}
+      >
+        Create Room
+      </Link>
     </div>
   )
 }
