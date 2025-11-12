@@ -17,7 +17,6 @@ const SignInPage: NextPage = () => {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [useCognito, setUseCognito] = useState(true)
   const router = useRouter()
 
   const handleSignIn = async () => {
@@ -26,20 +25,14 @@ const SignInPage: NextPage = () => {
       return;
     }
 
-    if (useCognito && !password) {
+    if (!password) {
       toast.error("Password is required");
       return;
     }
 
     setLoading(true);
-    
-    let result;
-    if (useCognito && password) {
-      result = await signInWithCognito(username, password);
-    } else {
-      result = await signIn(username, password);
-    }
 
+    const result = await signInWithCognito(username, password);
     const { data, status } = result;
 
     if (status === 403 && data?.requiresConfirmation) {
@@ -64,16 +57,6 @@ const SignInPage: NextPage = () => {
       </h3>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="useCognito"
-            checked={useCognito}
-            onChange={(e) => setUseCognito(e.target.checked)}
-          />
-          <Label htmlFor="useCognito">Use Cognito Authentication</Label>
-        </div>
-        
         <Label htmlFor='username'>Username</Label>
         <Input
           id='username'
@@ -81,23 +64,19 @@ const SignInPage: NextPage = () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        
-        {useCognito && (
-          <>
-            <Label htmlFor='password'>Password</Label>
-            <Input
-              id='password'
-              type="password"
-              placeholder="Your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </>
-        )}
-        
-        <Button onClick={handleSignIn} disabled={loading || !username || (useCognito && !password)}>
+
+        <Label htmlFor='password'>Password</Label>
+        <Input
+          id='password'
+          type="password"
+          placeholder="Your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <Button onClick={handleSignIn} disabled={loading || !username || !password} className={buttonVariants({ variant: 'default' })}>
           {loading ? <Spinner /> : <LogIn />}
-          Sign In {useCognito ? "with Cognito" : ""}
+          Sign In with Cognito
         </Button>
       </div>
       <Link href='/register' className={buttonVariants({ variant: 'outline' })}>

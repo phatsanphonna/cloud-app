@@ -9,11 +9,20 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import BackButton from "@/components/next/BackButton"
 import { createRoom } from "./actions"
 
+const GAME_TYPES = [
+  { id: "roll-dice", label: "Roll Dice" },
+  { id: "spin-wheel", label: "Spin the Wheel" },
+  { id: "match-fixing", label: "Match Fixing" },
+  { id: "vote", label: "Vote" },
+] as const
+
+type GameType = (typeof GAME_TYPES)[number]["id"]
+
 const CreateRoomPage: NextPage = () => {
   const [title, setTitle] = useState("")
   const [rounds, setRounds] = useState(3)
   const [minPlayer, setMinPlayer] = useState(2)
-  const [type, setType] = useState<"matchfixing" | "spinthewheel">("matchfixing")
+  const [gameType, setGameType] = useState<GameType>("roll-dice")
   const [isPending, startTransition] = useTransition()
 
   const handleCreate = () => {
@@ -25,7 +34,7 @@ const CreateRoomPage: NextPage = () => {
           return
         }
         
-        await createRoom(minPlayer, token)
+        await createRoom(minPlayer, gameType, token)
       } catch (error) {
         console.error("Failed to create room:", error)
         // You might want to show a toast or error message here
@@ -49,19 +58,16 @@ const CreateRoomPage: NextPage = () => {
           </div>
           <div>
             <Label>Game Type</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-              <Button
-                variant={type === 'matchfixing' ? 'default' : 'outline'}
-                onClick={() => setType('matchfixing')}
-              >
-                Match Fixing
-              </Button>
-              <Button
-                variant={type === 'spinthewheel' ? 'default' : 'outline'}
-                onClick={() => setType('spinthewheel')}
-              >
-                Spin the Wheel
-              </Button>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {GAME_TYPES.map(({ id, label }) => (
+                <Button
+                  key={id}
+                  variant={gameType === id ? 'default' : 'outline'}
+                  onClick={() => setGameType(id)}
+                >
+                  {label}
+                </Button>
+              ))}
             </div>
           </div>
           <div>

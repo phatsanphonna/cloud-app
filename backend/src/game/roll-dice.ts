@@ -7,6 +7,7 @@ import { getRoom } from "../room/query";
 interface DiceGameState {
   gameId: string
   roomId: string
+  hostId?: string
   players: Array<{
     id: string
     name: string
@@ -20,6 +21,36 @@ interface DiceGameState {
 }
 
 let diceGames: Map<string, DiceGameState> = new Map()
+
+const buildDiceState = async (gameId: string) => {
+  const gameSession = await getGameSession(gameId);
+  if (!gameSession || gameSession.gameType !== 'roll-dice') {
+    return null;
+  }
+
+  const players = gameSession.bets.map(bet => ({
+    id: bet.playerId,
+    name: `Player ${bet.playerId.slice(0, 6)}`,
+    prediction: bet.prediction as number,
+    betAmount: bet.amount
+  }));
+
+  const diceGameState: DiceGameState = {
+    gameId,
+    roomId: gameSession.roomId,
+    hostId: gameSession.hostId,
+    players,
+    gameStatus: gameSession.status === 'finished' ? 'finished' : 'waiting',
+    totalPrizePool: gameSession.totalPrizePool
+  };
+
+  if (gameSession.status === 'finished' && typeof gameSession.result === 'number') {
+    diceGameState.diceResult = gameSession.result;
+  }
+
+  diceGames.set(gameId, diceGameState);
+  return diceGameState;
+};
 
 export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
   .use(auth)
@@ -69,6 +100,7 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
       const diceGameState: DiceGameState = {
         gameId,
         roomId: gameSession.roomId,
+        hostId: gameSession.hostId,
         players,
         gameStatus: 'waiting',
         totalPrizePool: gameSession.totalPrizePool
@@ -92,10 +124,17 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
       }
       
       const { gameId } = params;
-      const gameState = diceGames.get(gameId);
+      let gameState = diceGames.get(gameId);
+      if (!gameState) {
+        gameState = await buildDiceState(gameId) ?? undefined;
+      }
       
       if (!gameState || gameState.gameStatus !== 'waiting') {
         throw new Error("Game not ready");
+      }
+      
+      if (gameState.hostId && gameState.hostId !== user.id) {
+        throw new Error("Only host can roll");
       }
       
       // ทอยลูกเต๋า
@@ -143,7 +182,7 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
       }
       
       const { gameId } = params;
-      const gameState = diceGames.get(gameId);
+      const gameState = diceGames.get(gameId) ?? await buildDiceState(gameId);
       
       if (!gameState) {
         throw new Error("Game not found");
@@ -191,20 +230,28 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
 
         const user = { id: Item.id.S, name: Item.username.S };
         
+        // Ensure state exists for late joiners
+        const state = diceGames.get(gameId) ?? await buildDiceState(gameId);
+        if (!state) {
+          ws.send(JSON.stringify({ type: "error", message: "Game not found" }));
+          ws.close(1000, "Game session missing");
+          return;
+        }
+
         // Subscribe to dice game updates
         ws.subscribe(`dice:${gameId}`);
         console.log(`User ${user.name} joined dice game ${gameId}`);
         
         // ส่งสถานะเกมปัจจุบัน
-        const gameState = diceGames.get(gameId);
-        if (gameState) {
+        if (state) {
           ws.send(JSON.stringify({
             type: 'game_status',
-            players: gameState.players,
-            totalPrizePool: gameState.totalPrizePool,
-            gameStatus: gameState.gameStatus,
-            diceResult: gameState.diceResult,
-            winners: gameState.winners
+            hostId: state.hostId,
+            players: state.players,
+            totalPrizePool: state.totalPrizePool,
+            gameStatus: state.gameStatus,
+            diceResult: state.diceResult,
+            winners: state.winners
           }));
         }
         
@@ -263,10 +310,11 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
         if ("type" in message) {
           switch (message.type) {
             case "get_game_status":
-              const gameState = diceGames.get(gameId);
+              const gameState = diceGames.get(gameId) ?? await buildDiceState(gameId);
               if (gameState) {
                 ws.send(JSON.stringify({
                   type: 'game_status',
+                  hostId: gameState.hostId,
                   players: gameState.players,
                   totalPrizePool: gameState.totalPrizePool,
                   gameStatus: gameState.gameStatus,
@@ -277,10 +325,15 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
               break;
               
             case "start_roll":
-              const currentGameState = diceGames.get(gameId);
+              const currentGameState = diceGames.get(gameId) ?? await buildDiceState(gameId);
               
               if (!currentGameState || currentGameState.gameStatus !== 'waiting') {
                 ws.send(JSON.stringify({ type: "error", message: "Game not ready" }));
+                break;
+              }
+
+              if (currentGameState.hostId && currentGameState.hostId !== user.id) {
+                ws.send(JSON.stringify({ type: "error", message: "Only host can roll" }));
                 break;
               }
               
@@ -297,12 +350,14 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
               currentGameState.winners = winners;
               
               // ส่ง animation rolling ก่อน
-              ws.publish(`dice:${gameId}`, JSON.stringify({
+              const rollingPayload = JSON.stringify({
                 type: 'dice_rolling',
                 result: diceResult,
                 winners,
                 winAmount
-              }));
+              });
+              ws.send(rollingPayload);
+              ws.publish(`dice:${gameId}`, rollingPayload);
               
               // อัปเดตฐานข้อมูลและจ่ายเงิน
               setTimeout(async () => {
@@ -319,12 +374,14 @@ export const RollDiceRoute = new Elysia({ prefix: "/game/roll-dice" })
                   }
                   
                   // ส่งผลลัพธ์สุดท้าย
-                  ws.publish(`dice:${gameId}`, JSON.stringify({
+                  const finishedPayload = JSON.stringify({
                     type: 'game_finished',
                     diceResult,
                     winners,
                     winAmount
-                  }));
+                  });
+                  ws.send(finishedPayload);
+                  ws.publish(`dice:${gameId}`, finishedPayload);
                   
                 } catch (error) {
                   console.error("Error finalizing dice game:", error);

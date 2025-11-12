@@ -22,6 +22,7 @@ export interface GameSession {
   roomId: string;
   gameType: 'roll-dice' | 'spin-wheel' | 'match-fixing' | 'vote';
   status: 'betting' | 'playing' | 'finished';
+  hostId?: string;
   bets: GameBet[];
   result?: any;
   totalPrizePool: number;
@@ -43,6 +44,7 @@ export async function createGameSession(roomId: string, gameType: GameSession['g
   // บันทึกใน room แทนที่จะสร้าง table ใหม่
   const room = await getRoom(roomId);
   if (!room) throw new Error("Room not found");
+  gameSession.hostId = room.hostId;
 
   // เพิ่มข้อมูลเกมเข้าไปใน room
   await db.send(new UpdateItemCommand({
@@ -62,6 +64,7 @@ export async function getGameSession(gameId: string): Promise<GameSession | null
     // ค้นหาใน rooms ทั้งหมดที่มี gameSession.id ตรงกับ gameId
     const response = await db.send(new ScanCommand({
       TableName: "Rooms",
+      ConsistentRead: true,
       FilterExpression: "gameSession.id = :gameId",
       ExpressionAttributeValues: marshall({
         ":gameId": gameId

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BackButton from '@/components/next/BackButton'
+import { buildWsProtocols, buildWsUrl } from '@/lib/config'
 
 interface Question {
   id: string
@@ -72,7 +73,7 @@ export default function MatchFixingGamePage() {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const websocket = new WebSocket(`ws://localhost:4000/game/match-fixing/${gameId}`, ['token', token])
+    const websocket = new WebSocket(buildWsUrl(`/game/match-fixing/${gameId}`), buildWsProtocols(token))
     
     websocket.onopen = () => {
       console.log('Connected to Match Fixing game')
@@ -181,7 +182,7 @@ export default function MatchFixingGamePage() {
   }
 
   const playAgain = () => {
-    router.push(`/game/select?roomId=${roomId}`)
+    router.push(`/room/${roomId}`)
   }
 
   const goToRoom = () => {

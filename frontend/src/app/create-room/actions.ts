@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 
-export async function createRoom(minPlayer: number, token: string) {
+export async function createRoom(minPlayer: number, gameType: string, token: string) {
   try {
     if (!token) {
       redirect('/signin')
@@ -17,7 +17,8 @@ export async function createRoom(minPlayer: number, token: string) {
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
-        minPlayer
+        minPlayer,
+        gameType,
       })
     })
 

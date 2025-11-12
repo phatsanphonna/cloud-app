@@ -1,4 +1,5 @@
 import { atom, useAtom } from "jotai";
+import { buildWsProtocols, buildWsUrl } from "@/lib/config";
 
 /** Public hook: returns a type-safe send() */
 type WSMessage = { type: string; payload?: unknown };
@@ -23,6 +24,7 @@ export const useWSSend = () => {
 }
 
 export const joinWSGame = (id: string) => {
-  return new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/games/${id}`, ['token', localStorage.getItem('token') || '']);
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return new WebSocket(buildWsUrl(`/ws/games/${id}`), buildWsProtocols(token));
 }
 

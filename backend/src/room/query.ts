@@ -11,7 +11,7 @@ import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { db } from "../database";
 import { ulid } from "ulid";
 
-export const createRoom = async (hostId: string, minPlayer: number) => {
+export const createRoom = async (hostId: string, minPlayer: number, gameType: string) => {
   const roomId = ulid();
   const roomCode = generateRoomCode(); // Generate a short room code
   const room = {
@@ -19,6 +19,7 @@ export const createRoom = async (hostId: string, minPlayer: number) => {
     roomCode,
     hostId,
     minPlayer,
+    gameType: gameType || "roll-dice",
     players: [hostId], // Array instead of Set
     status: "waiting",
     createdAt: new Date().toISOString(),

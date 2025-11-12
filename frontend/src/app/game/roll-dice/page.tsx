@@ -2,9 +2,11 @@
 
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button, buttonVariants } from '@/components/ui/button'
 import BackButton from '@/components/next/BackButton'
+import { buildWsProtocols, buildWsUrl } from '@/lib/config'
+import Link from 'next/link'
 
 interface Player {
   id: string
@@ -24,18 +26,19 @@ const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
 export default function RollDiceGamePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+
   const roomId = searchParams.get('roomId')
   const gameId = searchParams.get('gameId')
-  
+
   const [user, setUser] = useState<any>(null)
   const [ws, setWs] = useState<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [gameStatus, setGameStatus] = useState<'waiting' | 'rolling' | 'finished'>('waiting')
-  const [diceValue, setDiceValue] = useState<number>(1)
+  const [diceValue, setDiceValue] = useState<number | null>(null)
   const [isRolling, setIsRolling] = useState(false)
   const [gameResult, setGameResult] = useState<GameResult | null>(null)
   const [totalPrizePool, setTotalPrizePool] = useState<number>(0)
+  const [hostId, setHostId] = useState<string | null>(null)
 
   useEffect(() => {
     // Get user from localStorage
@@ -58,8 +61,8 @@ export default function RollDiceGamePage() {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const websocket = new WebSocket(`ws://localhost:4000/game/roll-dice/${gameId}`, ['token', token])
-    
+    const websocket = new WebSocket(buildWsUrl(`/game/roll-dice/ws/${gameId}`), buildWsProtocols(token))
+
     websocket.onopen = () => {
       console.log('Connected to Roll Dice game')
       setWs(websocket)
@@ -70,28 +73,35 @@ export default function RollDiceGamePage() {
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data)
       console.log('Received Roll Dice message:', data)
-      
+
       if (data.type === 'game_status') {
         setPlayers(data.players)
         setTotalPrizePool(data.totalPrizePool)
         setGameStatus(data.gameStatus)
+        setHostId(data.hostId || null)
+
+        if (data.gameStatus === 'waiting') {
+          setDiceValue(null)
+          setGameResult(null)
+          setIsRolling(false)
+        }
       }
-      
+
       if (data.type === 'dice_rolling') {
         setIsRolling(true)
         setGameStatus('rolling')
-        
+
         // Animation แบบจำลอง
         let rollCount = 0
         const rollInterval = setInterval(() => {
           setDiceValue(Math.floor(Math.random() * 6) + 1)
           rollCount++
-          
+
           if (rollCount >= 20) {
             clearInterval(rollInterval)
             setDiceValue(data.result)
             setIsRolling(false)
-            
+
             // รอแป๊บเดียวแล้วแสดงผล
             setTimeout(() => {
               setGameResult({
@@ -104,7 +114,7 @@ export default function RollDiceGamePage() {
           }
         }, 100)
       }
-      
+
       if (data.type === 'game_finished') {
         setGameResult({
           diceResult: data.diceResult,
@@ -112,7 +122,7 @@ export default function RollDiceGamePage() {
           winAmount: data.winAmount
         })
         setGameStatus('finished')
-        
+
         // อัปเดตเงินผู้เล่น
         if (data.winners.some((w: Player) => w.id === user.id)) {
           const updatedUser = { ...user, money: user.money + data.winAmount }
@@ -134,12 +144,13 @@ export default function RollDiceGamePage() {
 
   const rollDice = () => {
     if (!ws || gameStatus !== 'waiting') return
-    
+    if (hostId && user?.id !== hostId) return
+
     ws.send(JSON.stringify({ type: 'start_roll' }))
   }
 
   const playAgain = () => {
-    router.push(`/game/select?roomId=${roomId}`)
+    router.push(`/room/${roomId}`)
   }
 
   const goToRoom = () => {
@@ -149,175 +160,113 @@ export default function RollDiceGamePage() {
   if (!user || !roomId || !gameId) return <div>กำลังโหลด...</div>
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-900 via-pink-900 to-purple-900 p-4">
-      <BackButton />
-      
-      <div className="max-w-4xl mx-auto pt-16">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">
-            🎲 Roll Dice Game
-          </h1>
-          <p className="text-white/80">
-            รอการทอยลูกเต๋า! ใครทายถูกจะได้เงินรางวัล
-          </p>
+    <div className="min-h-screen p-4 text-black">
+      <div className="mx-auto flex w-full max-w-sm flex-col gap-4 pt-3">
+        <div className="flex items-center justify-between">
+          <BackButton />
         </div>
 
-        {/* Prize Pool */}
-        <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-yellow-400 mb-2">
-              🏆 เงินรางวัลรวม
-            </h2>
-            <div className="text-4xl font-bold text-white">
-              {totalPrizePool} บาท
-            </div>
-          </CardContent>
-        </Card>
+        <div className="text-center">
+          <h1 className="text-3xl font-semibold tracking-wide">🎲 Roll Dice Game</h1>
+          <p className="text-slate-500 text-sm">ทอยลูกเต๋าให้ตรง รับเงินกองกลางไปเลย!</p>
+        </div>
 
-        {/* Dice Display */}
-        <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
-          <CardContent className="p-8 text-center">
-            <div className="mb-6">
-              <div className={`text-8xl mb-4 ${isRolling ? 'animate-spin' : ''}`}>
-                {DICE_FACES[diceValue - 1]}
+        <div className="flex flex-col gap-4">
+          <Card className="w-full max-w-md border shadow-md">
+            <CardHeader className="space-y-1 text-center">
+              <CardTitle className="text-lg text-slate-800">🏆 เงินรางวัลรวม</CardTitle>
+              <CardDescription className="text-3xl font-bold text-slate-900">{totalPrizePool} บาท</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-2">
+                <div className={`text-7xl ${isRolling ? 'animate-spin' : ''}`}>
+                  {diceValue !== null ? DICE_FACES[diceValue - 1] : '—'}
+                </div>
+                <div className="text-base font-semibold text-slate-700">
+                  {isRolling ? 'กำลังทอย...' : `ผลลัพธ์ล่าสุด: ${diceValue ?? '-'}`}
+                </div>
               </div>
-              <div className="text-2xl font-bold text-white">
-                {isRolling ? 'กำลังทอย...' : `ผลลัพธ์: ${diceValue}`}
-              </div>
-            </div>
-            
-            {gameStatus === 'waiting' && (
-              <Button 
-                onClick={rollDice}
-                className="bg-red-600 hover:bg-red-700 text-white text-lg px-8 py-3"
-                disabled={!ws}
-              >
-                🎲 ทอยลูกเต๋า
-              </Button>
-            )}
-            
-            {isRolling && (
-              <div className="text-yellow-400 text-lg">
-                ⚡ กำลังทอยลูกเต๋า...
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Players Status */}
-        <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
-          <CardHeader>
-            <CardTitle className="text-white text-xl text-center">
-              ผู้เล่นและการทาย
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {gameStatus === 'waiting' && (
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <Button
+                    onClick={rollDice}
+                    className="w-full bg-rose-600 hover:bg-rose-600/90 text-white text-base"
+                    disabled={!ws || (hostId !== null && user?.id !== hostId)}
+                  >
+                    🎲 ทอยลูกเต๋า
+                  </Button>
+                  {hostId && user?.id !== hostId && (
+                    <p className="text-sm text-rose-600">โฮสต์เป็นคนทอยลูกเต๋าเท่านั้น</p>
+                  )}
+                </div>
+              )}
+
+              {isRolling && (
+                <div className="rounded-full border border-amber-200 px-4 py-1 text-sm text-amber-600">
+                  ⚡ กำลังทอยลูกเต๋า...
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="w-full max-w-md border shadow-md">
+            <CardHeader>
+              <CardTitle className="text-base text-slate-800">ผู้เล่นทั้งหมด</CardTitle>
+              <CardDescription className="text-xs text-slate-500">มี {players.length} คนร่วมเดิมพัน</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
               {players.map((player, index) => (
-                <div key={player.id} className="bg-white/5 p-4 rounded-lg">
-                  <div className="flex justify-between items-center text-white">
-                    <div>
-                      <div className="font-semibold">
-                        {player.id === user.id ? 'คุณ' : `ผู้เล่น ${index + 1}`}
-                      </div>
-                      <div className="text-sm text-white/70">
-                        แทง: {player.betAmount} บาท
-                      </div>
+                <div
+                  key={player.id}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold">
+                      {player.id === user.id ? 'คุณ' : `ผู้เล่น ${index + 1}`}
+                      {player.id === hostId && (
+                        <span className="ml-2 rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600">HOST</span>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">
-                        {player.prediction}
-                      </div>
-                      <div className="text-sm text-white/70">
-                        ทาย
-                      </div>
-                    </div>
+                    <span className="text-slate-500">แทง {player.betAmount} บาท</span>
                   </div>
+                  <div className="text-xs text-slate-400">ทายเลข {player.prediction ?? '—'}</div>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Game Result */}
         {gameResult && (
-          <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
-            <CardHeader>
-              <CardTitle className="text-white text-xl text-center">
-                🎉 ผลการแข่งขัน
-              </CardTitle>
+          <Card className="w-full max-w-md border shadow-md">
+            <CardHeader className="text-center space-y-1">
+              <CardTitle className="text-lg text-slate-800">🎉 ผลการแข่งขัน</CardTitle>
+              <CardDescription className="text-sm text-slate-500">ลูกเต๋าออก {gameResult.diceResult}</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-4">
-                  {DICE_FACES[gameResult.diceResult - 1]}
+            <CardContent className="space-y-4 text-center">
+              <div className="text-6xl">{DICE_FACES[gameResult.diceResult - 1]}</div>
+
+              {gameResult.winners.length === 0 ? (
+                <p className="rounded-lg bg-rose-100 px-4 py-3 text-rose-600 text-sm">
+                  ไม่มีใครทายถูกครั้งนี้
+                </p>
+              ) : (
+                <div className="rounded-lg bg-emerald-100 px-4 py-3 text-emerald-700 text-sm">
+                  ผู้ชนะ: {gameResult.winners.map(w => (w.id === user.id ? 'คุณ' : w.name)).join(', ')}<br />
+                  รับไปคนละ <span className="font-semibold">{gameResult.winAmount} บาท</span>
                 </div>
-                <div className="text-2xl font-bold text-white mb-4">
-                  ผลลัพธ์: {gameResult.diceResult}
+              )}
+
+              {gameStatus === 'finished' && (
+                <div className="flex flex-wrap justify-center gap-3">
+                  <Link href="/" className={buttonVariants()}>
+                    กลับหน้าหลัก
+                  </Link>
                 </div>
-                
-                {gameResult.winners.length > 0 ? (
-                  <div>
-                    <h3 className="text-xl font-bold text-green-400 mb-4">
-                      🏆 ผู้ชนะ
-                    </h3>
-                    <div className="space-y-2">
-                      {gameResult.winners.map((winner, index) => (
-                        <div key={winner.id} className="bg-green-500/20 p-3 rounded-lg">
-                          <div className="text-white font-semibold">
-                            {winner.id === user.id ? 'คุณ' : `ผู้เล่น ${index + 1}`}
-                          </div>
-                          <div className="text-green-400">
-                            ได้เงิน: {gameResult.winAmount} บาท
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-red-500/20 p-4 rounded-lg">
-                    <div className="text-red-400 font-semibold">
-                      😢 ไม่มีผู้ชนะ
-                    </div>
-                    <div className="text-white/70">
-                      ไม่มีใครทายถูก
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex gap-4 justify-center">
-                <Button 
-                  onClick={playAgain}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  🎮 เล่นเกมอื่น
-                </Button>
-                <Button 
-                  onClick={goToRoom}
-                  variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10"
-                >
-                  🏠 กลับห้อง
-                </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
         )}
-
-        {/* User Money Display */}
-        <div className="text-center">
-          <Card className="bg-white/10 backdrop-blur-sm border-white/20 inline-block">
-            <CardContent className="p-4">
-              <div className="text-white">
-                <p className="text-sm">
-                  💰 เงินของคุณ: <span className="font-semibold text-green-400">{user.money} บาท</span>
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   )

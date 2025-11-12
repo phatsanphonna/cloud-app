@@ -17,7 +17,7 @@ type SpinWheelProps<TId extends string | number, TItem extends WheelItem<TId>> =
   className?: string;
   items: readonly TItem[];
   /** Must return an id that exists in items[].id (sync or async) */
-  getResult: () => Promise<TId> | TId;
+  getResult?: () => Promise<TId> | TId;
   /** Called with the full typed item after the animation ends */
   onFinished?: (item: TItem) => void;
   size?: number;         // wheel diameter (px)
@@ -25,6 +25,13 @@ type SpinWheelProps<TId extends string | number, TItem extends WheelItem<TId>> =
   durationSec?: number;  // animation duration (seconds)
   /** tiny angle tweak if your pointer/rim needs it; negative rotates a bit more */
   calibrationDeg?: number; // default -6
+  /**
+   * Optional external trigger. When provided with a new nonce, the wheel will
+   * spin to the supplied id without invoking getResult().
+   */
+  trigger?: { id: TId; nonce: number } | null;
+  /** Hide the built-in button and handle triggering externally */
+  showButton?: boolean;
 };
 
 export function SpinWheel<
@@ -39,6 +46,8 @@ export function SpinWheel<
   extraSpins = 5,
   durationSec = 4,
   calibrationDeg = -6,
+  trigger = null,
+  showButton = true,
 }: SpinWheelProps<TId, TItem>) {
   const n = items.length;
   const SEGMENT_DEG = useMemo(() => (n > 0 ? 360 / n : 0), [n]);
@@ -50,6 +59,7 @@ export function SpinWheel<
 
   // remember which index should win when the animation completes
   const pendingIndexRef = useRef<number | null>(null);
+  const lastTriggerNonce = useRef<number | null>(null);
 
   // compute wedge base width for the triangular clip-path
   useEffect(() => {
@@ -58,6 +68,23 @@ export function SpinWheel<
     const radians = SEGMENT_DEG * (Math.PI / 180);
     setSegmentWidth(2 * radius * Math.sin(radians / 2));
   }, [SEGMENT_DEG, size]);
+
+  useEffect(() => {
+    if (!trigger) return;
+    if (trigger.nonce === lastTriggerNonce.current) return;
+    lastTriggerNonce.current = trigger.nonce;
+
+    const idx = items.findIndex((it) => it.id === trigger.id);
+    if (idx < 0) {
+      console.warn("[SpinWheel] trigger id not found:", trigger.id);
+      return;
+    }
+    if (n === 0) return;
+    setIsSpinning(true);
+    setWinner(null);
+    pendingIndexRef.current = idx;
+    spinToIndex(idx);
+  }, [trigger, items, n]);
 
   // small tweak if your clipPath/pointer overlap needs it
   const CALIBRATION_DEG = -6; // try -5..-7 if a hair off
@@ -83,7 +110,7 @@ export function SpinWheel<
   };
 
   const handleSpin = async () => {
-    if (isSpinning || n === 0) return;
+    if (isSpinning || n === 0 || !getResult) return;
     setIsSpinning(true);
     setWinner(null);
 
@@ -113,7 +140,7 @@ export function SpinWheel<
   };
 
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-6 p-4", className)}>
+      <div className={cn("flex flex-col items-center justify-center gap-6 p-4", className)}>
       <div className="relative rounded-full shadow-[0_0_30px_0_#673ab7]">
         {/* fixed pointer (straight triangle pointing DOWN, slight overlap) */}
         <div
@@ -179,9 +206,11 @@ export function SpinWheel<
         </div>
       </div>
 
-      <Button onClick={handleSpin} disabled={isSpinning || n === 0}>
-        {isSpinning ? "Spinning..." : "Spin the Wheel"}
-      </Button>
+      {showButton && (
+        <Button onClick={handleSpin} disabled={isSpinning || n === 0}>
+          {isSpinning ? "Spinning..." : "Spin the Wheel"}
+        </Button>
+      )}
 
       {winner && (
         <p className="text-lg font-semibold text-black">You won: {winner.label}!</p>

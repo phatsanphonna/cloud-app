@@ -58,7 +58,8 @@ export const VoteRoute = new Elysia()
           return { error: 'No token provided' }
         }
 
-        const payload = await jwt.verify(token)
+        const cleanToken = token.replace(/^Bearer\s+/i, '')
+        const payload = await jwt.verify(cleanToken)
         if (!payload || !payload.sub) {
           set.status = 401
           return { error: 'Invalid token' }

@@ -19,6 +19,47 @@ interface SpinWheelGameState {
 
 let spinWheelGames: Map<string, SpinWheelGameState> = new Map()
 
+const buildSpinWheelState = (session: Awaited<ReturnType<typeof getGameSession>>) => {
+  if (!session || session.gameType !== "spin-wheel") {
+    return null;
+  }
+
+  const players = session.bets.map(bet => ({
+    id: bet.playerId,
+    name: `Player ${bet.playerId.slice(0, 6)}`,
+    betAmount: bet.amount
+  }));
+
+  const state: SpinWheelGameState = {
+    gameId: session.id,
+    roomId: session.roomId,
+    players,
+    gameStatus: session.status === "finished" ? "finished" : "waiting",
+    totalPrizePool: session.totalPrizePool,
+  };
+
+  if (session.status === "finished" && typeof session.result === "string") {
+    state.winnerId = session.result;
+    state.winnerName = `Player ${session.result.slice(0, 6)}`;
+  }
+
+  return state;
+};
+
+const ensureSpinWheelState = async (gameId: string) => {
+  let gameState = spinWheelGames.get(gameId);
+  if (gameState) {
+    return gameState;
+  }
+
+  const session = await getGameSession(gameId);
+  gameState = buildSpinWheelState(session);
+  if (gameState) {
+    spinWheelGames.set(gameId, gameState);
+  }
+  return gameState;
+};
+
 export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
   .use(auth)
   .derive(async ({ request, jwt }) => {
@@ -143,7 +184,7 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
       }
       
       const { gameId } = params;
-      const gameState = spinWheelGames.get(gameId);
+      const gameState = await ensureSpinWheelState(gameId);
       
       if (!gameState) {
         throw new Error("Game not found");
@@ -191,20 +232,27 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
 
         const user = { id: Item.id.S, name: Item.username.S };
         
+        // Ensure state exists (handles page refresh / late joiners)
+        const existingState = await ensureSpinWheelState(gameId);
+        if (!existingState) {
+          ws.send(JSON.stringify({ type: "error", message: "Game not found" }));
+          ws.close(1000, "Game session missing");
+          return;
+        }
+
         // Subscribe to spin wheel game updates
         ws.subscribe(`spinwheel:${gameId}`);
         console.log(`User ${user.name} joined spin wheel game ${gameId}`);
         
         // ส่งสถานะเกมปัจจุบัน
-        const gameState = spinWheelGames.get(gameId);
-        if (gameState) {
+        if (existingState) {
           ws.send(JSON.stringify({
             type: 'game_status',
-            players: gameState.players,
-            totalPrizePool: gameState.totalPrizePool,
-            gameStatus: gameState.gameStatus,
-            winnerId: gameState.winnerId,
-            winnerName: gameState.winnerName
+            players: existingState.players,
+            totalPrizePool: existingState.totalPrizePool,
+            gameStatus: existingState.gameStatus,
+            winnerId: existingState.winnerId,
+            winnerName: existingState.winnerName
           }));
         }
         
@@ -277,7 +325,10 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
               break;
               
             case "start_spin":
-              const currentGameState = spinWheelGames.get(gameId);
+              let currentGameState = spinWheelGames.get(gameId);
+              if (!currentGameState) {
+                currentGameState = await ensureSpinWheelState(gameId);
+              }
               
               if (!currentGameState || currentGameState.gameStatus !== 'waiting') {
                 ws.send(JSON.stringify({ type: "error", message: "Game not ready" }));

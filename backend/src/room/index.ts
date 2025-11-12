@@ -35,13 +35,19 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
       if (!user) {
         throw new Error("Unauthorized");
       }
-      const room = await createRoom(user.id, body.minPlayer);
+      const room = await createRoom(user.id, body.minPlayer, body.gameType);
       console.log("Created room:", room);
       return room;
     },
     {
       body: t.Object({
         minPlayer: t.Numeric(),
+        gameType: t.Union([
+          t.Literal("roll-dice"),
+          t.Literal("spin-wheel"),
+          t.Literal("match-fixing"),
+          t.Literal("vote"),
+        ]),
       }),
     }
   )
@@ -62,6 +68,26 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
     {
       body: t.Object({
         roomCode: t.String(),
+      }),
+    }
+  )
+  .get(
+    "/:id",
+    async ({ params: { id }, user, status }) => {
+      if (!user) {
+        return status(401, { message: "Unauthorized" });
+      }
+
+      const room = await getRoom(id);
+      if (!room) {
+        return status(404, { message: "Room not found" });
+      }
+
+      return room;
+    },
+    {
+      params: t.Object({
+        id: t.String(),
       }),
     }
   )
@@ -205,7 +231,7 @@ export const RoomRoute = new Elysia({ prefix: "/room" })
         const user = { id: Item.id.S, name: Item.username.S };
         console.log(`Processing close for user ${user.name} (${user.id}) in room ${id}`);
 
-        await leaveRoom(id, user.id);
+        // await leaveRoom(id, user.id);
         const room = await getRoom(id);
         
         console.log(`User ${user.name} (${user.id}) unsubscribing from room:${id}`);

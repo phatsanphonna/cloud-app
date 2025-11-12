@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { getGameByRoomCode, getGameRoomById } from "./query.js";
+import { getGameByRoomCode, getGameRoomById, getLobbyInfo } from "./query.js";
 import { AuthService } from "../auth/index.js";
 
 export const game = new Elysia({
@@ -24,18 +24,12 @@ export const game = new Elysia({
     console.error(`Error occurred with code ${code}:`, error);
   })
   .get("/:id", async ({ params: { id }, status }) => {
-    const { Item } = await getGameRoomById(id);
-    if (!Item) {
+    const lobby = await getLobbyInfo(id);
+    if (!lobby) {
       return status(404, { message: "Game room not found." });
     }
 
-    return {
-      id: Item.id!.S,
-      roomCode: Item.roomCode!.S,
-      hostId: Item.hostId!.S,
-      players: Item.players ? JSON.parse(Item.players!.S || "[]") : [],
-      status: Item.status!.S,
-    };
+    return lobby;
   }, {
     params: t.Object({
       id: t.String()

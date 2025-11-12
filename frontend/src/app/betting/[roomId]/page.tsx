@@ -1,12 +1,14 @@
 "use client"
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BackButton from '@/components/next/BackButton'
+import { buildWsProtocols, buildWsUrl } from '@/lib/config'
+import { useUser as useGlobalUser } from '@/lib/user'
 
 const GAME_TYPES = [
   { id: 'roll-dice', name: 'Roll Dice', description: 'ทายลูกเต๋า 6 หน้า' },
@@ -44,81 +46,122 @@ export default function BettingPage() {
   const gameType = searchParams.get('gameType') as string
   
   const [user, setUser] = useState<User | null>(null)
+  const [globalUser] = useGlobalUser()
   const [betAmount, setBetAmount] = useState<number>(10)
   const [gameSession, setGameSession] = useState<GameSession | null>(null)
   const [prediction, setPrediction] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [ws, setWs] = useState<WebSocket | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null)
+  const socketRef = useRef<WebSocket | null>(null)
+
+  const redirectToGame = useCallback((session: GameSession | null) => {
+    if (!session) return
+    const targetType = session.gameType || gameType
+    let gameUrl = `/game/play?roomId=${roomId}&gameId=${session.id}&gameType=${targetType}`
+        
+    if (targetType === 'roll-dice') {
+      gameUrl = `/game/roll-dice?roomId=${roomId}&gameId=${session.id}`
+    } else if (targetType === 'spin-wheel') {
+      gameUrl = `/game/spin-wheel?roomId=${roomId}&gameId=${session.id}`
+    } else if (targetType === 'match-fixing') {
+      gameUrl = `/game/match-fixing?roomId=${roomId}&gameId=${session.id}`
+    } else if (targetType === 'vote') {
+      gameUrl = `/game/vote?roomId=${roomId}&gameId=${session.id}`
+    }
+    router.push(gameUrl)
+  }, [router, roomId, gameType])
 
   useEffect(() => {
-    // Get user from localStorage
+    if (globalUser) {
+      setUser({
+        id: globalUser.id,
+        name: globalUser.username,
+        money: globalUser.money,
+      })
+      setHydrated(true)
+      return
+    }
+
     const userData = localStorage.getItem('user')
     if (userData) {
       const parsedUser = JSON.parse(userData)
       setUser(parsedUser)
+      setHydrated(true)
     } else {
       router.push('/signin')
     }
-  }, [router])
+  }, [globalUser, router])
 
   useEffect(() => {
+    if (!hydrated) return
     if (!gameType || !roomId) {
-      router.push(`/room/${roomId}`)
+      router.push(roomId ? `/room/${roomId}` : '/')
       return
     }
 
-    // เชื่อมต่อ WebSocket สำหรับอัปเดตการแทงเงิน
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const websocket = new WebSocket(`ws://localhost:4000/game/${roomId}`, ['token', token])
-    
-    websocket.onopen = () => {
-      console.log('Connected to betting websocket')
-      setWs(websocket)
-      // ขอข้อมูล game session ปัจจุบัน
-      websocket.send(JSON.stringify({ type: 'get_game_session', gameType }))
-    }
+    const connectWebSocket = () => {
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current)
+      }
 
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      
-      if (data.type === 'game_session_update') {
-        setGameSession(data.gameSession)
+      const websocket = new WebSocket(buildWsUrl(`/betting/ws/${roomId}`), buildWsProtocols(token))
+      socketRef.current = websocket
+
+      websocket.onopen = () => {
+        console.log('Connected to betting websocket')
+        setWs(websocket)
+        websocket.send(JSON.stringify({ type: 'get_game_session', gameType }))
       }
-      
-      if (data.type === 'bet_placed') {
-        // อัปเดตข้อมูลเมื่อมีคนแทง
-        setGameSession(prev => prev ? { ...prev, ...data.gameSession } : null)
-      }
-      
-      if (data.type === 'all_bets_placed') {
-        // เมื่อทุกคนแทงครบแล้วให้ไปหน้าเกม
-        let gameUrl = `/game/play?roomId=${roomId}&gameId=${data.gameId}&gameType=${gameType}`
+
+      websocket.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+
+        console.log(data)
         
-        if (gameType === 'roll-dice') {
-          gameUrl = `/game/roll-dice?roomId=${roomId}&gameId=${data.gameId}`
-        } else if (gameType === 'spin-wheel') {
-          gameUrl = `/game/spin-wheel?roomId=${roomId}&gameId=${data.gameId}`
-        } else if (gameType === 'match-fixing') {
-          gameUrl = `/game/match-fixing?roomId=${roomId}&gameId=${data.gameId}`
-        } else if (gameType === 'vote') {
-          gameUrl = `/game/vote?roomId=${roomId}&gameId=${data.gameId}`
+        if (data.type === 'game_session_update') {
+          setGameSession(data.gameSession)
         }
         
-        router.push(gameUrl)
+        if (data.type === 'bet_placed') {
+          setGameSession(prev => prev ? { ...prev, ...data.gameSession } : null)
+        }
+        
+        if (data.type === 'all_bets_placed') {
+          setGameSession(data.gameSession)
+          redirectToGame(data.gameSession)
+        }
+      }
+
+      websocket.onerror = (event) => {
+        console.error('Betting websocket error', event)
+      }
+
+      websocket.onclose = (event) => {
+        console.log('Disconnected from betting websocket', event.code, event.reason || '')
+        setWs(null)
+
+        if (!event.wasClean) {
+          reconnectTimer.current = setTimeout(connectWebSocket, 2000)
+        }
       }
     }
 
-    websocket.onclose = () => {
-      console.log('Disconnected from betting websocket')
-      setWs(null)
-    }
+    connectWebSocket()
 
     return () => {
-      websocket.close()
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current)
+      }
+      socketRef.current?.close()
     }
-  }, [gameType, roomId, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, gameType, roomId])
+
 
   const handlePlaceBet = async () => {
     if (!user || !gameSession || !ws) return
@@ -209,6 +252,13 @@ export default function BettingPage() {
     }
   }
 
+  useEffect(() => {
+    if (!gameSession || gameSession.status !== 'playing') {
+      return
+    }
+    redirectToGame(gameSession)
+  }, [gameSession, redirectToGame])
+
   const getCurrentGameType = () => {
     return GAME_TYPES.find(type => type.id === gameType)
   }
@@ -218,81 +268,70 @@ export default function BettingPage() {
   if (!user) return <div>กำลังโหลด...</div>
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4">
-      <BackButton />
-      
-      <div className="max-w-2xl mx-auto pt-16">
-        <Card className="bg-white/10 backdrop-blur-sm border-white/20">
-          <CardHeader>
-            <CardTitle className="text-white text-2xl text-center">
+    <div className="min-h-screenp-4 text-black">
+      <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <BackButton />
+        </div>
+
+        <Card className="w-full max-w-md border shadow-md">
+          <CardHeader className="text-center space-y-1">
+            <CardTitle className="text-lg text-slate-900">
               {getCurrentGameType()?.name} - การแทงเงิน
             </CardTitle>
-            <p className="text-white/80 text-center">
-              {getCurrentGameType()?.description}
-            </p>
+            <p className="text-sm text-slate-500">{getCurrentGameType()?.description}</p>
           </CardHeader>
-          
-          <CardContent className="space-y-6">
-            {/* ข้อมูลผู้เล่น */}
-            <div className="bg-white/5 p-4 rounded-lg">
-              <div className="text-white">
-                <p>ผู้เล่น: <span className="font-semibold">{user.name}</span></p>
-                <p>เงินคงเหลือ: <span className="font-semibold text-green-400">{user.money} บาท</span></p>
-              </div>
+
+          <CardContent className="space-y-5">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+              <p>ผู้เล่น: <span className="font-semibold text-slate-800">{user.name}</span></p>
+              <p>เงินคงเหลือ: <span className="font-semibold text-emerald-600">{user.money} บาท</span></p>
             </div>
 
-            {/* สถานะเกม */}
             {gameSession && (
-              <div className="bg-white/5 p-4 rounded-lg">
-                <div className="text-white">
-                  <p>เงินรางวัลรวม: <span className="font-semibold text-yellow-400">{gameSession.totalPrizePool} บาท</span></p>
-                  <p>จำนวนผู้แทง: <span className="font-semibold">{gameSession.bets.length} คน</span></p>
-                </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                <p>เงินรางวัลรวม: <span className="font-semibold text-amber-600">{gameSession.totalPrizePool} บาท</span></p>
+                <p>จำนวนผู้แทง: <span className="font-semibold text-slate-800">{gameSession.bets.length} คน</span></p>
               </div>
             )}
 
-            {/* ฟอร์มแทงเงิน */}
             {!hasUserBet ? (
               <div className="space-y-4">
-                <div>
-                  <Label className="text-white">จำนวนเงินที่แทง</Label>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">จำนวนเงินที่แทง</Label>
                   <Input
                     type="number"
                     value={betAmount}
                     onChange={(e) => setBetAmount(Number(e.target.value))}
                     min="1"
                     max={user.money}
-                    className="bg-white/10 border-white/20 text-white"
                   />
                 </div>
 
                 {renderPredictionInput()}
 
-                <Button 
+                <Button
                   onClick={handlePlaceBet}
                   disabled={loading || betAmount <= 0 || betAmount > user.money}
-                  className="w-full"
+                  className="w-full text-base text-white"
                 >
                   {loading ? 'กำลังแทง...' : `แทงเงิน ${betAmount} บาท`}
                 </Button>
               </div>
             ) : (
-              <div className="text-center p-8">
-                <div className="text-white">
-                  <h3 className="text-lg font-semibold mb-2">✅ แทงเงินเรียบร้อยแล้ว</h3>
-                  <p>รอผู้เล่นคนอื่นแทงเงิน...</p>
-                </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-6 text-center text-emerald-700">
+                ✅ แทงเงินเรียบร้อยแล้ว<br />รอผู้เล่นคนอื่นแทงเงิน...
               </div>
             )}
 
-            {/* รายการผู้แทง */}
             {gameSession && gameSession.bets.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-white">ผู้เล่นที่แทงแล้ว:</Label>
-                <div className="space-y-1">
+              <div className="space-y-2 text-sm">
+                <Label className="text-slate-700">ผู้เล่นที่แทงแล้ว</Label>
+                <div className="space-y-2">
                   {gameSession.bets.map(bet => (
-                    <div key={bet.id} className="bg-white/5 p-2 rounded text-white text-sm">
-                      ผู้เล่น {bet.playerId.slice(0, 8)}... แทง {bet.amount} บาท
+                    <div key={bet.id} className="flex justify-between rounded border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+                      <span>ผู้เล่น {bet.playerId.slice(0, 6)}...</span>
+                      <span className="font-semibold">{bet.amount} บาท</span>
                     </div>
                   ))}
                 </div>

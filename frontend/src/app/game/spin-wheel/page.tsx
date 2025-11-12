@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BackButton from '@/components/next/BackButton'
+import SpinWheel from '@/components/next/SpinWheel'
+import { buildWsProtocols, buildWsUrl } from '@/lib/config'
 
 interface Player {
   id: string
@@ -30,12 +32,17 @@ export default function SpinWheelGamePage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [gameStatus, setGameStatus] = useState<'waiting' | 'spinning' | 'finished'>('waiting')
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
-  const [isSpinning, setIsSpinning] = useState(false)
+  const [isWheelSpinning, setIsWheelSpinning] = useState(false)
   const [gameResult, setGameResult] = useState<GameResult | null>(null)
   const [totalPrizePool, setTotalPrizePool] = useState<number>(0)
-  const [rotation, setRotation] = useState<number>(0)
+  const [wheelTrigger, setWheelTrigger] = useState<{ id: string; nonce: number } | null>(null)
 
   const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD']
+  const wheelItems = players.map((player, index) => ({
+    id: player.id,
+    label: player.id === user?.id ? 'คุณ' : `ผู้เล่น ${index + 1}`,
+    color: colors[index % colors.length],
+  }))
 
   useEffect(() => {
     // Get user from localStorage
@@ -58,7 +65,7 @@ export default function SpinWheelGamePage() {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const websocket = new WebSocket(`ws://localhost:4000/game/spin-wheel/${gameId}`, ['token', token])
+    const websocket = new WebSocket(buildWsUrl(`/game/spin-wheel/ws/${gameId}`), buildWsProtocols(token))
     
     websocket.onopen = () => {
       console.log('Connected to Spin Wheel game')
@@ -78,27 +85,10 @@ export default function SpinWheelGamePage() {
       }
       
       if (data.type === 'wheel_spinning') {
-        setIsSpinning(true)
         setGameStatus('spinning')
-        
-        // Animation หมุนล้อ
-        const finalRotation = 1440 + (360 * Math.random()) // หมุน 4 รอบ + random
-        setRotation(finalRotation)
-        
-        // รอให้ animation จบ
-        setTimeout(() => {
-          setSelectedPlayer(data.winnerId)
-          setIsSpinning(false)
-          
-          setTimeout(() => {
-            setGameResult({
-              winnerId: data.winnerId,
-              winnerName: data.winnerName,
-              totalWinAmount: data.totalWinAmount
-            })
-            setGameStatus('finished')
-          }, 1000)
-        }, 4000) // รอ 4 วินาทีให้ wheel หมุนจบ
+        setIsWheelSpinning(true)
+        setSelectedPlayer(data.winnerId)
+        setWheelTrigger({ id: data.winnerId, nonce: Date.now() })
       }
       
       if (data.type === 'game_finished') {
@@ -108,6 +98,7 @@ export default function SpinWheelGamePage() {
           totalWinAmount: data.totalWinAmount
         })
         setGameStatus('finished')
+        setIsWheelSpinning(false)
         
         // อัปเดตเงินผู้เล่นถ้าเป็นผู้ชนะ
         if (data.winnerId === user.id) {
@@ -129,13 +120,13 @@ export default function SpinWheelGamePage() {
   }, [user, gameId])
 
   const spinWheel = () => {
-    if (!ws || gameStatus !== 'waiting') return
+    if (!ws || gameStatus !== 'waiting' || isWheelSpinning) return
     
     ws.send(JSON.stringify({ type: 'start_spin' }))
   }
 
   const playAgain = () => {
-    router.push(`/game/select?roomId=${roomId}`)
+    router.push(`/room/${roomId}`)
   }
 
   const goToRoom = () => {
@@ -173,59 +164,28 @@ export default function SpinWheelGamePage() {
 
         {/* Spin Wheel */}
         <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
-          <CardContent className="p-8 text-center">
-            <div className="relative mx-auto mb-8" style={{ width: '300px', height: '300px' }}>
-              {/* Wheel */}
-              <div 
-                className="w-full h-full rounded-full border-4 border-white shadow-lg transition-transform duration-4000 ease-out"
-                style={{
-                  transform: `rotate(${rotation}deg)`,
-                  background: players.length > 0 ? `conic-gradient(${players.map((player, index) => 
-                    `${colors[index % colors.length]} ${index * (360/players.length)}deg ${(index + 1) * (360/players.length)}deg`
-                  ).join(', ')})` : '#333'
-                }}
-              >
-                {/* Player Names on Wheel */}
-                {players.map((player, index) => (
-                  <div
-                    key={player.id}
-                    className="absolute text-white font-bold text-xs"
-                    style={{
-                      top: '50%',
-                      left: '50%',
-                      transform: `rotate(${index * (360/players.length) + (360/players.length)/2}deg) translateY(-120px)`,
-                      transformOrigin: '0 0'
-                    }}
-                  >
-                    <div className="transform -rotate-90">
-                      {player.id === user.id ? 'คุณ' : `P${index + 1}`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Pointer */}
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="w-0 h-0 border-l-4 border-r-4 border-b-8 border-l-transparent border-r-transparent border-b-red-500"></div>
-              </div>
-              
-              {/* Center Circle */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full border-2 border-gray-800 flex items-center justify-center">
-                <div className="w-2 h-2 bg-gray-800 rounded-full"></div>
-              </div>
-            </div>
+          <CardContent className="p-8 text-center flex flex-col items-center gap-6">
+            <SpinWheel
+              items={wheelItems}
+              trigger={wheelTrigger}
+              showButton={false}
+              onFinished={(item) => {
+                setSelectedPlayer(item.id as string)
+                setIsWheelSpinning(false)
+              }}
+            />
             
             {gameStatus === 'waiting' && (
               <Button 
                 onClick={spinWheel}
                 className="bg-cyan-600 hover:bg-cyan-700 text-white text-lg px-8 py-3"
-                disabled={!ws || players.length === 0}
+                disabled={!ws || players.length === 0 || isWheelSpinning}
               >
                 🎯 หมุนล้อ
               </Button>
             )}
             
-            {isSpinning && (
+            {isWheelSpinning && (
               <div className="text-yellow-400 text-lg">
                 🌀 กำลังหมุนล้อ...
               </div>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BackButton from '@/components/next/BackButton'
+import { buildWsProtocols, buildWsUrl } from '@/lib/config'
 
 interface VoteOption {
   id: string
@@ -68,7 +69,7 @@ export default function VoteGamePage() {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const websocket = new WebSocket(`ws://localhost:4000/game/vote/${gameId}`, ['token', token])
+    const websocket = new WebSocket(buildWsUrl(`/game/vote/${gameId}`), buildWsProtocols(token))
     
     websocket.onopen = () => {
       console.log('Connected to Vote game')
@@ -162,7 +163,7 @@ export default function VoteGamePage() {
   }
 
   const playAgain = () => {
-    router.push(`/game/select?roomId=${roomId}`)
+    router.push(`/room/${roomId}`)
   }
 
   const goToRoom = () => {

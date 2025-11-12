@@ -6,6 +6,7 @@ export interface LobbyInfo {
   title: string;
   users: LobbyUser[];
   type: string;
+  status?: string;
 }
 
 export type LobbyUser = {

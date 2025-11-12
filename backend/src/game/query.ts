@@ -63,6 +63,7 @@ export const getLobbyInfo = async (gameId: string): Promise<LobbyInfo | null> =>
     title?: string;
     type?: string;
     roomCode?: string;
+    status?: string;
     users?: Set<string> | string[]; // SS becomes Set<string> after unmarshall
   };
 
@@ -114,6 +115,7 @@ export const getLobbyInfo = async (gameId: string): Promise<LobbyInfo | null> =>
     title: game.title || '',
     type: game.type || '',
     roomCode: game.roomCode || '',
+    status: game.status,
     users,
   };
 };

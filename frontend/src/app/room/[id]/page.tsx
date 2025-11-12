@@ -1,12 +1,20 @@
 "use client"
 
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import BackButton from '@/components/next/BackButton'
+import { buildApiUrl, buildWsProtocols, buildWsUrl } from '@/lib/config'
+
+const GAME_TYPE_LABELS: Record<string, string> = {
+  'roll-dice': 'Roll Dice',
+  'spin-wheel': 'Spin Wheel',
+  'match-fixing': 'Match Fixing',
+  'vote': 'Vote',
+}
 
 interface Player {
   id: string
@@ -20,6 +28,7 @@ interface Room {
   players: string[]
   minPlayer: number
   status: string
+  gameType?: string
 }
 
 interface WSMessage {
@@ -42,6 +51,13 @@ export default function RoomPage() {
   const [ws, setWs] = useState<WebSocket | null>(null)
   const [isHost, setIsHost] = useState(false)
   const [user, setUser] = useState<{ id: string; name: string } | null>(null)
+  const gameTypeRef = useRef<string | undefined>(undefined)
+
+  const buildGameUrl = (type?: string | null) => {
+    const fallback = 'roll-dice'
+    const target = type && typeof type === 'string' ? type : fallback
+    return `/betting/${roomId}?gameType=${target}`
+  }
 
   useEffect(() => {
     // Get user from localStorage
@@ -63,9 +79,9 @@ export default function RoomPage() {
         
         // If game started less than 60 seconds ago and it's for this room
         if (timeDiff < 60000 && gameInfo.roomId === roomId) {
-          console.log('Recent game start detected, redirecting to game selection...')
+          console.log('Recent game start detected, redirecting to betting page...')
           console.log('Game info:', gameInfo)
-          router.push(`/game/select?roomId=${roomId}`)
+          router.push(buildGameUrl(gameInfo.gameType))
           return
         } else if (gameInfo.roomId === roomId) {
           // Clean up old game start data for this room
@@ -79,147 +95,46 @@ export default function RoomPage() {
   }, [roomId, router])
 
   useEffect(() => {
-    console.log('Room ID:', roomId, 'User:', user)
-    if (!roomId || !user) return
+    if (!roomId || !user) {
+      return
+    }
 
     const token = localStorage.getItem('token')
-    console.log('Token:', token ? 'exists' : 'missing')
     if (!token) {
       window.location.href = '/signin'
       return
     }
 
-    console.log('Creating WebSocket connection...')
-    const websocket = new WebSocket(
-      `ws://localhost:4000/room/${roomId}`,
-      ['token', token]
-    )
+    const protocols = buildWsProtocols(token)
+    let websocket: WebSocket | null = null
+    let reconnectTimer: NodeJS.Timeout | null = null
 
-    // Add a fallback timer to check game status every 3 seconds in case WebSocket messages are missed
     const statusCheckInterval = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:4000/room/${roomId}`, {
+        const response = await fetch(buildApiUrl(`/room/${roomId}`), {
           headers: {
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`
           }
-        });
+        })
         if (response.ok) {
-          const roomData = await response.json();
-          console.log('Fallback status check - Room status:', roomData.status);
+          const roomData = await response.json()
           if (roomData.status === 'starting' || roomData.status === 'in_progress') {
-            console.log('🎮 Game detected via fallback status check, redirecting...');
+            const detectedType = roomData.gameType || gameTypeRef.current || 'roll-dice'
             localStorage.setItem('gameStarted', JSON.stringify({
-              roomId: roomId,
+              roomId,
               timestamp: Date.now(),
-              userId: user?.id
-            }));
-            router.push(`/game/select?roomId=${roomId}`);
-            clearInterval(statusCheckInterval);
+              userId: user.id,
+              gameType: detectedType
+            }))
+            router.push(buildGameUrl(detectedType))
+            clearInterval(statusCheckInterval)
           }
         }
       } catch (error) {
-        console.log('Fallback status check failed:', error);
+        console.log('Fallback status check failed:', error)
       }
-    }, 3000);
+    }, 3000)
 
-    websocket.onopen = () => {
-      console.log('Connected to room websocket')
-      console.log('User connecting:', user)
-      setWs(websocket)
-    }
-
-    websocket.onmessage = (event) => {
-      try {
-        const data: WSMessage = JSON.parse(event.data)
-        console.log('Received WebSocket message:', data)
-        console.log('Current user:', user)
-        console.log('Is host:', isHost)
-
-        if (data.type === 'room_update' && data.room) {
-          console.log('Setting room data:', data.room)
-          console.log('Current user.id:', user?.id)
-          console.log('Room hostId:', data.room.hostId)
-          console.log('Is host check:', data.room.hostId === user?.id)
-          setRoom(data.room)
-          setIsHost(data.room.hostId === user?.id)
-          // For now, just show player IDs - in real app you'd fetch player details
-          setPlayers(data.room.players.map(playerId => ({ id: playerId, name: `Player ${playerId.slice(0, 6)}` })))
-        }
-        
-        if (data.type === 'countdown' && data.countdown !== undefined) {
-          console.log('Countdown received:', data.countdown)
-          console.log('Setting countdown state to:', data.countdown)
-          setCountdown(data.countdown)
-        }
-        
-        if (data.type === 'game_start') {
-          console.log('🎮 GAME START MESSAGE RECEIVED!')
-          console.log('User ID:', user?.id)
-          console.log('Is Host:', isHost)
-          setCountdown(null)
-          
-          // Store game start info in localStorage for persistence
-          localStorage.setItem('gameStarted', JSON.stringify({
-            roomId: roomId,
-            timestamp: Date.now(),
-            userId: user?.id
-          }))
-          
-          // Redirect all players to game selection page
-          console.log('Game starting, redirecting to game selection...')
-          router.push(`/game/select?roomId=${roomId}`)
-        }
-        
-        if (data.message) {
-          setMessage(data.message)
-          setTimeout(() => setMessage(""), 3000) // Clear message after 3 seconds
-        }
-        
-        if (data.error) {
-          console.error('WebSocket error:', data.error)
-          setMessage(data.error)
-        }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
-      }
-    }
-
-    websocket.onclose = (event) => {
-      console.log('Disconnected from room websocket')
-      console.log('Close event details:', { code: event.code, reason: event.reason, wasClean: event.wasClean })
-      console.log('User disconnecting:', user)
-      setWs(null)
-      
-      // If the close was unexpected (not clean), try to reconnect after a delay
-      if (!event.wasClean && event.code !== 1000) {
-        console.log('Unexpected disconnection, attempting reconnect in 2 seconds...')
-        setTimeout(() => {
-          if (user && token) {
-            console.log('Attempting to reconnect WebSocket...')
-            // Recreate the WebSocket connection
-            connectWebSocket()
-          }
-        }, 2000)
-      }
-    }
-
-    const connectWebSocket = () => {
-      if (!user || !token) return
-      
-      const protocol = `token, Bearer ${token}`
-      const websocket = new WebSocket(`ws://localhost:3001/room/${roomId}`, protocol)
-      
-      // ... (rest of the WebSocket setup code would go here)
-      // But for now, let's just log the reconnection attempt
-      console.log('Reconnection attempted')
-    }
-
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error)
-      console.log('User experiencing error:', user)
-    }
-
-    // Prevent WebSocket from closing on visibility change
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         console.log('Page hidden, keeping WebSocket alive')
@@ -228,17 +143,85 @@ export default function RoomPage() {
       }
     }
 
-    // Add event listeners to prevent accidental disconnection
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    
-    // Cleanup function
-    const cleanup = () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      websocket.close()
+    const createWebSocket = () => {
+      const socket = new WebSocket(buildWsUrl(`/room/${roomId}`), protocols)
+
+      socket.onopen = () => {
+        console.log('Connected to room websocket')
+        setWs(socket)
+      }
+
+      socket.onmessage = (event) => {
+        try {
+          const data: WSMessage = JSON.parse(event.data)
+
+          if (data.type === 'room_update' && data.room) {
+            setRoom(data.room)
+            setIsHost(data.room.hostId === user.id)
+            setPlayers(data.room.players.map(playerId => ({ id: playerId, name: `Player ${playerId.slice(0, 6)}` })))
+            gameTypeRef.current = data.room.gameType
+          }
+          
+          if (data.type === 'countdown' && data.countdown !== undefined) {
+            setCountdown(data.countdown)
+          }
+          
+          if (data.type === 'game_start') {
+            setCountdown(null)
+            const targetType = gameTypeRef.current || 'roll-dice'
+            localStorage.setItem('gameStarted', JSON.stringify({
+              roomId,
+              timestamp: Date.now(),
+              userId: user.id,
+              gameType: targetType
+            }))
+            router.push(buildGameUrl(targetType))
+          }
+          
+          if (data.message) {
+            setMessage(data.message)
+            setTimeout(() => setMessage(""), 3000)
+          }
+          
+          if (data.error) {
+            console.error('WebSocket error:', data.error)
+            setMessage(data.error)
+          }
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error)
+        }
+      }
+
+      socket.onclose = (event) => {
+        console.log('Disconnected from room websocket')
+        setWs(null)
+
+        if (!event.wasClean && event.code !== 1000) {
+          reconnectTimer = setTimeout(() => {
+            websocket = createWebSocket()
+          }, 2000)
+        }
+      }
+
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error)
+      }
+
+      return socket
     }
 
-    return cleanup
-  }, [roomId, user])
+    websocket = createWebSocket()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+      }
+      clearInterval(statusCheckInterval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      websocket?.close()
+    }
+  }, [roomId, user, router])
 
   const handleStartGame = () => {
     if (ws && isHost) {
@@ -280,6 +263,11 @@ export default function RoomPage() {
           </div>
           {room.roomCode && (
             <p className="text-sm text-muted-foreground">Code: <span className="font-mono font-bold">{room.roomCode}</span></p>
+          )}
+          {room.gameType && (
+            <p className="text-sm text-muted-foreground">
+              Game: <span className="font-semibold">{GAME_TYPE_LABELS[room.gameType] ?? room.gameType}</span>
+            </p>
           )}
           {message && (
             <p className="text-sm text-muted-foreground">{message}</p>
