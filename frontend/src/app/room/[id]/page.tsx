@@ -11,17 +11,17 @@ import BackButton from '@/components/next/BackButton'
 import { buildApiUrl, buildWsProtocols, buildWsUrl } from '@/lib/config'
 
 const GAME_TYPE_LABELS: Record<string, string> = {
-  'roll-dice': 'ทอยลูกเต๋า',
-  'spin-wheel': 'หมุนวงล้อ',
-  'match-fixing': 'ตอบคำถาม',
-  'vote': 'โหวต',
+  'roll-dice': 'Roll Dice',
+  'spin-wheel': 'Spin Wheel',
+  'match-fixing': 'Match Fixing',
+  'vote': 'Vote',
 }
 
 const ROOM_STATUS_LABELS: Record<string, string> = {
-  waiting: 'รอผู้เล่น',
-  starting: 'กำลังเริ่ม',
-  in_progress: 'กำลังเล่น',
-  finished: 'จบแล้ว',
+  waiting: 'Waiting for players',
+  starting: 'Starting soon',
+  in_progress: 'In progress',
+  finished: 'Finished',
 }
 
 interface Player {
@@ -270,7 +270,7 @@ export default function RoomPage() {
 
     return (roomData.players || []).map((playerId) => ({
       id: playerId,
-      name: `ผู้เล่น ${playerId.slice(0, 6)}`,
+      name: `Player ${playerId.slice(0, 6)}`,
     }))
   }
 
@@ -314,7 +314,7 @@ export default function RoomPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p>กำลังเชื่อมต่อกับห้อง...</p>
+          <p>Connecting to the room...</p>
         </div>
       </div>
     )

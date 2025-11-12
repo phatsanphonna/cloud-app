@@ -111,7 +111,7 @@ export default function VoteGamePage() {
         })
         setGameStatus('finished')
         
-        // อัปเดตเงินผู้เล่นถ้าเป็นผู้ชนะ
+        // Update winner balance locally
         if (data.winners.some((w: Player) => w.id === user.id)) {
           const updatedUser = { ...user, money: user.money + data.winAmount }
           setUser(updatedUser)
@@ -170,7 +170,7 @@ export default function VoteGamePage() {
     router.push(`/room/${roomId}`)
   }
 
-  if (!user || !roomId || !gameId) return <div>กำลังโหลด...</div>
+  if (!user || !roomId || !gameId) return <div>Loading…</div>
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-4">
@@ -180,10 +180,10 @@ export default function VoteGamePage() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-4">
-            🗳️ Vote Game
+            Vote Game
           </h1>
           <p className="text-white/80">
-            {isHost ? 'สร้างตัวเลือกให้ผู้เล่นโหวต' : 'โหวตเลือกตัวเลือกที่ชอบ'}
+            {isHost ? 'Create options for players to vote on' : 'Vote for the option you prefer'}
           </p>
         </div>
 
@@ -191,10 +191,10 @@ export default function VoteGamePage() {
         <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
           <CardContent className="p-6 text-center">
             <h2 className="text-2xl font-bold text-yellow-400 mb-2">
-              🏆 เงินรางวัลรวม
+              Total prize pool
             </h2>
             <div className="text-4xl font-bold text-white">
-              {totalPrizePool} บาท
+              {totalPrizePool}
             </div>
           </CardContent>
         </Card>
@@ -204,16 +204,16 @@ export default function VoteGamePage() {
           <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
             <CardHeader>
               <CardTitle className="text-white text-xl">
-                ⚙️ สร้างตัวเลือก ({voteOptions.length} ตัวเลือก)
+                Configure options ({voteOptions.length} total)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label className="text-white">ตัวเลือกใหม่</Label>
+                <Label className="text-white">New option</Label>
                 <Input
                   value={newOptionText}
                   onChange={(e) => setNewOptionText(e.target.value)}
-                  placeholder="พิมพ์ตัวเลือก..."
+                  placeholder="Type an option..."
                   className="bg-white/10 border-white/20 text-white"
                 />
               </div>
@@ -224,14 +224,14 @@ export default function VoteGamePage() {
                   disabled={!newOptionText.trim()}
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  ➕ เพิ่มตัวเลือก
+                  Add option
                 </Button>
                 {voteOptions.length >= 2 && (
                   <Button 
                     onClick={startVoting}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    🚀 เริ่มโหวต ({voteOptions.length} ตัวเลือก)
+                    Start voting ({voteOptions.length} options)
                   </Button>
                 )}
               </div>
@@ -244,7 +244,7 @@ export default function VoteGamePage() {
           <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
             <CardHeader>
               <CardTitle className="text-white text-xl">
-                📝 ตัวเลือกทั้งหมด
+                All options
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -270,12 +270,12 @@ export default function VoteGamePage() {
                       </div>
                       {gameStatus === 'finished' && (
                         <div className="text-sm text-white/70">
-                          {option.votes} โหวต
+                          {option.votes} vote(s)
                         </div>
                       )}
                       {selectedVote === option.id && (
                         <div className="text-green-400 text-sm mt-2">
-                          ✅ คุณเลือกแล้ว
+                          You selected this option
                         </div>
                       )}
                     </div>
@@ -285,7 +285,7 @@ export default function VoteGamePage() {
               
               {gameStatus === 'voting' && selectedVote && (
                 <div className="mt-4 text-center text-green-400">
-                  ✅ คุณโหวตแล้ว รอผู้เล่นคนอื่น...
+                  Your vote has been recorded. Waiting for other players…
                 </div>
               )}
               
@@ -295,7 +295,7 @@ export default function VoteGamePage() {
                     onClick={finishVoting}
                     className="bg-red-600 hover:bg-red-700"
                   >
-                    ⏹️ จบการโหวต
+                    Finish voting
                   </Button>
                 </div>
               )}
@@ -308,8 +308,8 @@ export default function VoteGamePage() {
           <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
             <CardContent className="p-8 text-center">
               <div className="text-white">
-                <h3 className="text-xl font-semibold mb-4">⏳ รอ Host สร้างตัวเลือก</h3>
-                <p className="text-white/70">Host กำลังเตรียมตัวเลือกอยู่...</p>
+                <h3 className="text-xl font-semibold mb-4">Waiting for the host to add options</h3>
+                <p className="text-white/70">The host is preparing the list of choices…</p>
               </div>
             </CardContent>
           </Card>
@@ -320,7 +320,7 @@ export default function VoteGamePage() {
           <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
             <CardHeader>
               <CardTitle className="text-white text-xl text-center">
-                🎉 ผลการโหวต
+                Voting results
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -329,29 +329,29 @@ export default function VoteGamePage() {
                   <div>
                     <div className="bg-yellow-500/20 p-4 rounded-lg mb-4">
                       <h3 className="text-xl font-bold text-yellow-400 mb-2">
-                        🏆 ตัวเลือกที่ชนะ
+                        Winning option
                       </h3>
                       <div className="text-white text-lg">
                         {gameResult.winningOption.text}
                       </div>
                       <div className="text-yellow-300 text-sm">
-                        {gameResult.winningOption.votes} โหวต
+                        {gameResult.winningOption.votes} vote(s)
                       </div>
                     </div>
 
                     {gameResult.winners.length > 0 ? (
                       <div>
                         <h3 className="text-xl font-bold text-green-400 mb-4">
-                          🏆 ผู้ชนะ (โหวตถูก)
+                          Winners (correct vote)
                         </h3>
                         <div className="space-y-2">
                           {gameResult.winners.map((winner, index) => (
                             <div key={winner.id} className="bg-green-500/20 p-3 rounded-lg">
                               <div className="text-white font-semibold">
-                                {winner.id === user.id ? 'คุณ' : `ผู้เล่น ${index + 1}`}
+                                {winner.id === user.id ? 'You' : `Player ${index + 1}`}
                               </div>
                               <div className="text-green-400">
-                                ได้เงิน: {gameResult.winAmount} บาท
+                                Payout: {gameResult.winAmount}
                               </div>
                             </div>
                           ))}
@@ -360,10 +360,10 @@ export default function VoteGamePage() {
                     ) : (
                       <div className="bg-red-500/20 p-4 rounded-lg">
                         <div className="text-red-400 font-semibold">
-                          😢 ไม่มีผู้ชนะ
+                          No winners
                         </div>
                         <div className="text-white/70">
-                          ไม่มีใครโหวตตัวเลือกที่ชนะ
+                          Nobody voted for the winning option
                         </div>
                       </div>
                     )}
@@ -371,10 +371,10 @@ export default function VoteGamePage() {
                 ) : (
                   <div className="bg-gray-500/20 p-4 rounded-lg">
                     <div className="text-gray-400 font-semibold">
-                      🤝 เสมอ
+                      Draw
                     </div>
                     <div className="text-white/70">
-                      ทุกตัวเลือกได้โหวตเท่ากัน
+                      Every option received the same number of votes
                     </div>
                   </div>
                 )}
@@ -385,14 +385,14 @@ export default function VoteGamePage() {
                   onClick={playAgain}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  🎮 เล่นเกมอื่น
+                  Choose another game
                 </Button>
                 <Button 
                   onClick={goToRoom}
                   variant="outline"
                   className="border-white/20 text-white hover:bg-white/10"
                 >
-                  🏠 กลับห้อง
+                  Return to room
                 </Button>
               </div>
             </CardContent>
@@ -403,7 +403,7 @@ export default function VoteGamePage() {
         <Card className="bg-white/10 backdrop-blur-sm border-white/20 mb-6">
           <CardHeader>
             <CardTitle className="text-white text-xl text-center">
-              ผู้เข้าร่วมการโหวต
+              Players
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -413,18 +413,18 @@ export default function VoteGamePage() {
                   <div className="flex justify-between items-center text-white">
                     <div>
                       <div className="font-semibold">
-                        {player.id === user.id ? 'คุณ' : `ผู้เล่น ${index + 1}`}
+                        {player.id === user.id ? 'You' : `Player ${index + 1}`}
                         {isHost && player.id === user.id && ' (Host)'}
                       </div>
                       <div className="text-sm text-white/70">
-                        แทง: {player.betAmount} บาท
+                        Bet: {player.betAmount}
                       </div>
                     </div>
                     <div className="text-sm">
                       {player.vote ? (
-                        <span className="text-green-400">✅ โหวตแล้ว</span>
+                        <span className="text-green-400">Voted</span>
                       ) : (
-                        <span className="text-yellow-400">⏳ รอโหวต</span>
+                        <span className="text-yellow-400">Waiting</span>
                       )}
                     </div>
                   </div>
@@ -440,7 +440,7 @@ export default function VoteGamePage() {
             <CardContent className="p-4">
               <div className="text-white">
                 <p className="text-sm">
-                  💰 เงินของคุณ: <span className="font-semibold text-green-400">{user.money} บาท</span>
+                  Balance: <span className="font-semibold text-green-400">{user.money}</span>
                 </p>
               </div>
             </CardContent>

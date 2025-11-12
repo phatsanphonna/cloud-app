@@ -6,6 +6,7 @@ import { getGameSession, updateGameStatus } from "./bet";
 interface SpinWheelGameState {
   gameId: string
   roomId: string
+  hostId?: string
   players: Array<{
     id: string
     name: string
@@ -33,6 +34,7 @@ const buildSpinWheelState = (session: Awaited<ReturnType<typeof getGameSession>>
   const state: SpinWheelGameState = {
     gameId: session.id,
     roomId: session.roomId,
+    hostId: session.hostId,
     players,
     gameStatus: session.status === "finished" ? "finished" : "waiting",
     totalPrizePool: session.totalPrizePool,
@@ -107,6 +109,7 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
       const spinWheelGameState: SpinWheelGameState = {
         gameId,
         roomId: gameSession.roomId,
+        hostId: gameSession.hostId,
         players,
         gameStatus: 'waiting',
         totalPrizePool: gameSession.totalPrizePool
@@ -252,7 +255,8 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
             totalPrizePool: existingState.totalPrizePool,
             gameStatus: existingState.gameStatus,
             winnerId: existingState.winnerId,
-            winnerName: existingState.winnerName
+            winnerName: existingState.winnerName,
+            hostId: existingState.hostId ?? existingState.players[0]?.id ?? null
           }));
         }
         
@@ -319,7 +323,8 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
                   totalPrizePool: gameState.totalPrizePool,
                   gameStatus: gameState.gameStatus,
                   winnerId: gameState.winnerId,
-                  winnerName: gameState.winnerName
+                  winnerName: gameState.winnerName,
+                  hostId: gameState.hostId ?? gameState.players[0]?.id ?? null
                 }));
               }
               break;
@@ -332,6 +337,11 @@ export const SpinWheelRoute = new Elysia({ prefix: "/game/spin-wheel" })
               
               if (!currentGameState || currentGameState.gameStatus !== 'waiting') {
                 ws.send(JSON.stringify({ type: "error", message: "Game not ready" }));
+                break;
+              }
+
+              if (currentGameState.hostId && currentGameState.hostId !== user.id) {
+                ws.send(JSON.stringify({ type: "error", message: "Only host can spin the wheel" }));
                 break;
               }
               

@@ -54,20 +54,11 @@ export function SpinWheel<
 
   const [rotation, setRotation] = useState(0); // cumulative target angle
   const [isSpinning, setIsSpinning] = useState(false);
-  const [segmentWidth, setSegmentWidth] = useState(0);
   const [winner, setWinner] = useState<TItem | null>(null);
 
   // remember which index should win when the animation completes
   const pendingIndexRef = useRef<number | null>(null);
   const lastTriggerNonce = useRef<number | null>(null);
-
-  // compute wedge base width for the triangular clip-path
-  useEffect(() => {
-    if (!SEGMENT_DEG) return;
-    const radius = size / 2;
-    const radians = SEGMENT_DEG * (Math.PI / 180);
-    setSegmentWidth(2 * radius * Math.sin(radians / 2));
-  }, [SEGMENT_DEG, size]);
 
   useEffect(() => {
     if (!trigger) return;
@@ -139,6 +130,24 @@ export function SpinWheel<
     return items[idx]?.color ?? (idx % 2 === 0 ? "#7e57c2" : "#f06292");
   };
 
+  // helper for full SVG arc
+  const describeArc = (cx: number, cy: number, r: number, startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+
+    return ["M", start.x, start.y, "A", r, r, 0, largeArcFlag, 0, end.x, end.y, "L", cx, cy, "Z"].join(" ");
+  };
+
+  const polarToCartesian = (cx: number, cy: number, r: number, angleInDegrees: number) => {
+    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+
+    return {
+      x: cx + r * Math.cos(angleInRadians),
+      y: cy + r * Math.sin(angleInRadians),
+    };
+  };
+
   return (
       <div className={cn("flex flex-col items-center justify-center gap-6 p-4", className)}>
       <div className="relative rounded-full shadow-[0_0_30px_0_#673ab7]">
@@ -158,7 +167,7 @@ export function SpinWheel<
 
         {/* spinning disc */}
         <motion.div
-          className="relative flex items-center justify-center overflow-hidden rounded-full ring-8 ring-[#673ab7] rotate-180"
+          className="relative flex items-center justify-center overflow-hidden rounded-full ring-8 ring-[#673ab7]"
           style={{ width: size, height: size }}
           animate={{ rotate: rotation }}
           transition={{ duration: durationSec, ease: "easeOut" }}
@@ -175,24 +184,38 @@ export function SpinWheel<
             // NOTE: we do NOT "snap" rotation here—snapping causes the “second mini-spin”
           }}
         >
+          <svg width={size} height={size} className="absolute inset-0">
+            {items.map((it, index) => {
+              const startDeg = index * SEGMENT_DEG + CALIBRATION_DEG;
+              const endDeg = startDeg + SEGMENT_DEG;
+              const path = describeArc(size / 2, size / 2, size / 2, startDeg, endDeg);
+              const bg = colorAt(index, winner?.id === it.id);
+              return (
+                <path
+                  key={`segment-${it.id}`}
+                  d={path}
+                  fill={bg}
+                  stroke="#f1f5f9"
+                  strokeWidth={1.2}
+                />
+              );
+            })}
+          </svg>
           {items.map((it, index) => {
-            const bg = colorAt(index, winner?.id === it.id);
+            const angle = index * SEGMENT_DEG + SEGMENT_DEG / 2 + CALIBRATION_DEG;
+            const labelPos = polarToCartesian(size / 2, size / 2, size * 0.32, angle);
             return (
-              <div
-                key={String(it.id)}
-                className="absolute flex h-1/2 items-center justify-center drop-shadow-[inset_0_0_0_#bebebe, inset_0_10px_10px_#ffffff]"
+              <span
+                key={`label-${it.id}`}
+                className="absolute rounded bg-black/80 px-2 py-1 text-xs font-bold text-white"
                 style={{
-                  transform: `rotate(${index * SEGMENT_DEG}deg) translateY(50%)`,
-                  clipPath: "polygon(50% 0%, -8% 100%, 100% 100%)",
-                  width: `${segmentWidth}px`,
-                  zIndex: n - index,
-                  background: bg,
+                  left: labelPos.x,
+                  top: labelPos.y,
+                  transform: "translate(-50%, -50%)",
                 }}
               >
-                <span className="mt-5 rounded bg-black/90 px-2 py-0.5 text-xs font-bold text-white whitespace-nowrap">
-                  {it.label}
-                </span>
-              </div>
+                {it.label}
+              </span>
             );
           })}
         </motion.div>
@@ -208,12 +231,12 @@ export function SpinWheel<
 
       {showButton && (
         <Button onClick={handleSpin} disabled={isSpinning || n === 0}>
-          {isSpinning ? "กำลังหมุน..." : "หมุนวงล้อ"}
+          {isSpinning ? "Spinning..." : "Spin the wheel"}
         </Button>
       )}
 
       {winner && (
-        <p className="text-lg font-semibold text-black">คุณได้รับ: {winner.label}!</p>
+        <p className="text-lg font-semibold text-black">You won: {winner.label}!</p>
       )}
     </div>
   );

@@ -30,22 +30,22 @@ const Operation: FC = () => {
 
       if (status !== 200) {
         if (status === 401) {
-          toast.error("กรุณาเข้าสู่ระบบก่อนเข้าร่วมห้อง")
+          toast.error("Please sign in before joining a room")
           router.push('/signin')
           return
         }
         if (status === 404) {
-          toast.error("ไม่พบห้อง กรุณาตรวจสอบโค้ดอีกครั้ง")
+          toast.error("Room not found, please double-check the code")
           return
         }
         console.error("Failed to join room:", data)
-        toast.error(data?.message || "ไม่สามารถเข้าร่วมห้องได้")
+        toast.error(data?.message || "Unable to join the room")
         return
       }
 
       if (!data?.roomId) {
         console.error("No room ID returned:", data)
-        toast.error("ข้อมูลตอบกลับจากเซิร์ฟเวอร์ไม่ถูกต้อง")
+        toast.error("Invalid response from server")
         return
       }
 
@@ -53,7 +53,7 @@ const Operation: FC = () => {
       router.push(`/room/${data.roomId}`)
     } catch (error) {
       console.error("Failed to join room:", error)
-      toast.error("ไม่สามารถเข้าร่วมห้องได้")
+      toast.error("Unable to join the room")
     }
   }
 
@@ -62,7 +62,7 @@ const Operation: FC = () => {
       {joinRoomOpen && (
         <>
           <Input
-            placeholder="กรอกโค้ดห้อง"
+            placeholder="Enter room code"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
             className='text-center'
@@ -70,25 +70,16 @@ const Operation: FC = () => {
           />
           <Button onClick={joinRoom}>
             <LogInIcon />
-            เข้าร่วมห้อง
+            Join room
           </Button>
         </>
       )}
 
       {!joinRoomOpen && (
         <Button onClick={() => setJoinRoomOpen(true)}>
-          เข้าร่วมห้อง
+          Join room
         </Button>
       )}
-
-      <Link
-        href="/create-room"
-        className={buttonVariants({
-          variant: 'outline',
-        })}
-      >
-        สร้างห้องใหม่
-      </Link>
     </div>
   )
 }

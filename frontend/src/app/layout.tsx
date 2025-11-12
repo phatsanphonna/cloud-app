@@ -12,7 +12,7 @@ const mali = Mali({
 });
 
 export const metadata: Metadata = {
-  title: "เดิมพันให้สุด",
+  title: "Stake It All",
 };
 
 export default function RootLayout({
@@ -26,10 +26,18 @@ export default function RootLayout({
         className={`${mali.className} antialiased`}
       >
         <UserProvider>
-          <AuroraBackground>
-            <div className="grid grid-rows-[auto_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 w-full relative z-10">
-              <Navbar />
-              {children}
+          <AuroraBackground className="min-h-screen !h-auto items-stretch justify-start">
+            <div className="relative z-10 flex min-h-screen w-full flex-col">
+              <header className="sticky top-0 z-20 w-full border-b border-white/30 bg-white/70 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:border-white/10 dark:bg-zinc-900/70">
+                <div className="mx-auto w-full max-w-6xl">
+                  <Navbar />
+                </div>
+              </header>
+              <main className="flex-1 w-full px-4 py-6 pb-12 sm:px-6 lg:px-8">
+                <div className="mx-auto w-full max-w-6xl">
+                  {children}
+                </div>
+              </main>
             </div>
           </AuroraBackground>
         </UserProvider>

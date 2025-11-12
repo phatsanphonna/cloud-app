@@ -384,15 +384,15 @@ export const MatchFixingRoute = new Elysia()
               },
             })
 
-            ws.publish(
-              channel,
-              JSON.stringify({
-                type: 'game_finished',
-                winners,
-                winAmount,
-                questions: state.questions,
-              })
-            )
+            const finishPayload = JSON.stringify({
+              type: 'game_finished',
+              winners,
+              winAmount,
+              questions: state.questions,
+            })
+
+            ws.publish(channel, finishPayload)
+            ws.send(finishPayload)
             break
           }
 

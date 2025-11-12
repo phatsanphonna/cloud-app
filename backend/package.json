@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "build": "tsc src/index.ts --outDir dist",
+    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun-linux-x64 --outfile server src/index.ts",
     "start": "NODE_ENV=production node dist/index.js"
   },
   "keywords": [],

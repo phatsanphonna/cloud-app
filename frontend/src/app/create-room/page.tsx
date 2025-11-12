@@ -1,46 +1,50 @@
-"use client"
+"use client";
 
-import { NextPage } from "next"
-import { useState, useTransition } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import BackButton from "@/components/next/BackButton"
-import { createRoom } from "./actions"
+import { NextPage } from "next";
+import { useState, useTransition } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import BackButton from "@/components/next/BackButton";
+import { createRoom } from "./actions";
 
 const GAME_TYPES = [
-  { id: "roll-dice", label: "ทอยลูกเต๋า" },
-  { id: "spin-wheel", label: "หมุนวงล้อ" },
-  { id: "match-fixing", label: "ตอบคำถาม" },
-  { id: "vote", label: "โหวตตัดสิน" },
-] as const
+  { id: "match-fixing", label: "Match Fixing", disabled: false },
+  { id: "roll-dice", label: "Roll Dice", disabled: false },
+  { id: "spin-wheel", label: "Spin Wheel", disabled: true },
+] as const;
 
-type GameType = (typeof GAME_TYPES)[number]["id"]
+type GameType = (typeof GAME_TYPES)[number]["id"];
 
 const CreateRoomPage: NextPage = () => {
-  const [title, setTitle] = useState("")
-  const [rounds, setRounds] = useState(3)
-  const [minPlayer, setMinPlayer] = useState(2)
-  const [gameType, setGameType] = useState<GameType>("roll-dice")
-  const [isPending, startTransition] = useTransition()
+  const [title, setTitle] = useState("");
+  const [minPlayer, setMinPlayer] = useState(2);
+  const [gameType, setGameType] = useState<GameType>("roll-dice");
+  const [isPending, startTransition] = useTransition();
 
   const handleCreate = () => {
     startTransition(async () => {
       try {
-        const token = localStorage.getItem('token')
+        const token = localStorage.getItem("token");
         if (!token) {
-          window.location.href = '/signin'
-          return
+          window.location.href = "/signin";
+          return;
         }
-        
-        await createRoom(minPlayer, gameType, token, title)
+
+        await createRoom(minPlayer, gameType, token, title);
       } catch (error) {
-        console.error("Failed to create room:", error)
+        console.error("Failed to create room:", error);
         // You might want to show a toast or error message here
       }
-    })
-  }
+    });
+  };
 
   return (
     <div className="self-stretch w-full h-full flex flex-col items-center p-4 sm:p-6 gap-3">
@@ -49,21 +53,28 @@ const CreateRoomPage: NextPage = () => {
       </div>
       <Card className="w-full max-w-md border shadow-md">
         <CardHeader>
-          <CardTitle>สร้างห้อง</CardTitle>
+          <CardTitle>Create a room</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="title">ชื่อตั้งห้อง</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ปาร์ตี้คืนวันศุกร์" />
+            <Label htmlFor="title">Room name</Label>
+            <Input
+              id="title"
+              className="mt-2"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Friday party"
+            />
           </div>
           <div>
-            <Label>เลือกประเภทเกม</Label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {GAME_TYPES.map(({ id, label }) => (
+            <Label>Select game type</Label>
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              {GAME_TYPES.map(({ id, label, disabled }) => (
                 <Button
                   key={id}
-                  variant={gameType === id ? 'default' : 'outline'}
+                  variant={gameType === id ? "default" : "outline"}
                   onClick={() => setGameType(id)}
+                  disabled={disabled}
                 >
                   {label}
                 </Button>
@@ -71,30 +82,36 @@ const CreateRoomPage: NextPage = () => {
             </div>
           </div>
           <div>
-            <Label>จำนวนผู้เล่นขั้นต่ำ</Label>
+            <Label>Minimum players</Label>
             <div className="grid grid-cols-4 gap-2 mt-2">
-              {[2,3,4,5].map((n) => (
-                <Button key={n} variant={minPlayer===n?"default":"outline"} onClick={() => setMinPlayer(n)}>{n}</Button>
+              {[2, 3, 4, 5].map((n) => (
+                <Button
+                  key={n}
+                  variant={minPlayer === n ? "default" : "outline"}
+                  onClick={() => setMinPlayer(n)}
+                >
+                  {n}
+                </Button>
               ))}
             </div>
           </div>
           <div>
-            <Label>จำนวนรอบ</Label>
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              {[1,2,3].map((n) => (
-                <Button key={n} variant={rounds===n?"default":"outline"} onClick={() => setRounds(n)}>{n}</Button>
-              ))}
-            </div>
+            <Label>Number of rounds</Label>
+            <Button className="mt-2">1</Button>
           </div>
         </CardContent>
         <CardFooter>
-          <Button className="w-full" onClick={handleCreate} disabled={isPending}>
-            {isPending ? "กำลังสร้าง..." : "สร้างห้อง"}
+          <Button
+            className="w-full"
+            onClick={handleCreate}
+            disabled={isPending}
+          >
+            {isPending ? "Creating..." : "Create room"}
           </Button>
         </CardFooter>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default CreateRoomPage
+export default CreateRoomPage;

@@ -9,26 +9,30 @@ import BackButton from '@/components/next/BackButton'
 const GAME_TYPES = [
   { 
     id: 'roll-dice', 
-    name: '🎲 Roll Dice', 
-    description: 'ทายลูกเต๋า 6 หน้า - ทายถูกได้เงินรางวัล!',
+    name: 'Roll Dice', 
+    short: 'RD',
+    description: 'Guess the six-sided die. Correct guesses share the pot.',
     color: 'from-red-500 to-pink-500'
   },
   { 
     id: 'spin-wheel', 
-    name: '🎯 Spin Wheel', 
-    description: 'สุ่มผู้โชคดี - ใครได้จะได้เงินทั้งหมด!',
+    name: 'Spin Wheel', 
+    short: 'SW',
+    description: 'One random winner takes everything.',
     color: 'from-blue-500 to-cyan-500'
   },
   { 
     id: 'match-fixing', 
-    name: '🧠 Match Fixing', 
-    description: 'ตอบคำถาม - ตอบถูกทุกข้อได้เงิน!',
+    name: 'Match Fixing', 
+    short: 'MF',
+    description: 'Host sets the real answer. Be on the right side.',
     color: 'from-green-500 to-emerald-500'
   },
   { 
     id: 'vote', 
-    name: '🗳️ Vote', 
-    description: 'โหวตตัวเลือก - ฝ่ายชนะได้เงิน!',
+    name: 'Vote', 
+    short: 'VT',
+    description: 'Majority wins and collects the prize.',
     color: 'from-purple-500 to-indigo-500'
   }
 ]
@@ -59,7 +63,7 @@ export default function GameSelectionPage() {
     router.push(`/betting/${roomId}?gameType=${gameType}`)
   }
 
-  if (!user || !roomId) return <div>กำลังโหลด...</div>
+  if (!user || !roomId) return <div>Loading…</div>
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4">
@@ -68,10 +72,10 @@ export default function GameSelectionPage() {
       <div className="max-w-4xl mx-auto pt-16">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-4">
-            🎮 เลือกเกมที่จะเล่น
+            Choose a game
           </h1>
           <p className="text-white/80 text-lg">
-            เลือกเกมที่คุณต้องการเล่น แล้วไปแทงเงินกันเลย!
+            Pick a game mode and start betting.
           </p>
         </div>
 
@@ -89,8 +93,8 @@ export default function GameSelectionPage() {
               </CardHeader>
               
               <CardContent className="text-center">
-                <div className={`w-20 h-20 rounded-full bg-gradient-to-r ${game.color} mx-auto mb-4 flex items-center justify-center text-3xl`}>
-                  {game.name.split(' ')[0]}
+                <div className={`w-20 h-20 rounded-full bg-gradient-to-r ${game.color} mx-auto mb-4 flex items-center justify-center text-2xl font-bold tracking-wide`}>
+                  {game.short}
                 </div>
                 
                 <p className="text-white/90 mb-6">
@@ -104,7 +108,7 @@ export default function GameSelectionPage() {
                     selectGame(game.id)
                   }}
                 >
-                  เลือกเกมนี้
+                  Play this game
                 </Button>
               </CardContent>
             </Card>
@@ -116,7 +120,7 @@ export default function GameSelectionPage() {
             <CardContent className="p-4">
               <div className="text-white">
                 <p className="text-sm">
-                  💰 เงินของคุณ: <span className="font-semibold text-green-400">{user.money} บาท</span>
+                  Balance: <span className="font-semibold text-green-400">{user.money}</span>
                 </p>
               </div>
             </CardContent>

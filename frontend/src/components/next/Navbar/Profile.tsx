@@ -26,14 +26,14 @@ const Profile: React.FC<Props> = ({ user }) => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>
-          <span className="text-xs text-muted-foreground">เข้าสู่ระบบในชื่อ </span>
+          <span className="text-xs text-muted-foreground">Signed in as </span>
           <span className="font-medium">{user.username}</span>
           <br />
-          <span className="text-xs text-muted-foreground">ยอดคงเหลือ: </span>
+          <span className="text-xs text-muted-foreground">Balance: </span>
           <span className="font-medium">{user.money}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={signOut} className="text-destructive">ออกจากระบบ</DropdownMenuItem>
+        <DropdownMenuItem onClick={signOut} className="text-destructive">Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -22,17 +22,17 @@ const RegisterPage: NextPage = () => {
 
   const handleRegister = async () => {
     if (!username) {
-      toast.error("กรุณากรอกชื่อผู้ใช้");
+      toast.error("Please enter a username");
       return;
     }
 
     if (useCognito && !password) {
-      toast.error("กรุณากรอกรหัสผ่าน");
+      toast.error("Please enter a password");
       return;
     }
 
     if (useCognito && !email) {
-      toast.error("กรุณากรอกอีเมลเพื่อสมัครผ่าน Cognito");
+      toast.error("Please provide an email to register with Cognito");
       return;
     }
 
@@ -68,7 +68,7 @@ const RegisterPage: NextPage = () => {
     <div className="flex flex-col gap-4 w-full max-w-md">
       <BackButton />
       <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-        สมัครสมาชิก
+        Create an account
       </h3>
 
       <div className="flex flex-col gap-2">
@@ -79,10 +79,10 @@ const RegisterPage: NextPage = () => {
             checked={useCognito}
             onChange={(e) => setUseCognito(e.target.checked)}
           />
-          <Label htmlFor="useCognito">ใช้การยืนยันตัวตนผ่าน Cognito</Label>
+          <Label htmlFor="useCognito">Use Cognito authentication</Label>
         </div>
 
-        <Label htmlFor='username'>ชื่อผู้ใช้</Label>
+        <Label htmlFor='username'>Username</Label>
         <Input
           id='username'
           placeholder="Somchai007"
@@ -92,20 +92,20 @@ const RegisterPage: NextPage = () => {
         
         {useCognito && (
           <>
-            <Label htmlFor='password'>รหัสผ่าน</Label>
+            <Label htmlFor='password'>Password</Label>
             <Input
               id='password'
               type="password"
-              placeholder="รหัสผ่าน (อย่างน้อย 8 ตัว มีตัวเลข)"
+              placeholder="At least 8 characters with a number"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             
-            <Label htmlFor='email'>อีเมล <span className="text-red-500">*</span></Label>
+            <Label htmlFor='email'>Email <span className="text-red-500">*</span></Label>
             <Input
               id='email'
               type="email"
-              placeholder="คุณ@email.com"
+              placeholder="you@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required={useCognito}
@@ -113,7 +113,7 @@ const RegisterPage: NextPage = () => {
             
             {email && (
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                ระบบจะส่งรหัสยืนยันไปที่อีเมลนี้
+                A verification code will be sent to this email
               </p>
             )}
           </>
@@ -121,11 +121,11 @@ const RegisterPage: NextPage = () => {
         
         <Button onClick={handleRegister} disabled={loading || !username || (useCognito && (!password || !email))}>
           {loading && <Spinner />}
-          สมัครสมาชิก{useCognito ? " ผ่าน Cognito" : ""}
+          Create account{useCognito ? " with Cognito" : ""}
         </Button>
       </div>
       <Link href='/signin' className={buttonVariants({ variant: 'outline' })}>
-        เข้าสู่ระบบ
+        Already have an account? Sign in
       </Link>
     </div>
   )

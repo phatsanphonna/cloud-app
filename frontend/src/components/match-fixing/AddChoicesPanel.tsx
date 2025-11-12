@@ -23,7 +23,7 @@ export function AddChoicesPanel({
   onSubmit,
   onStartGame,
   canStart = false,
-  questionLabel = 'คำถาม',
+  questionLabel = 'Question',
   minChoices = 2,
   disabled = false,
 }: AddChoicesPanelProps) {
@@ -64,20 +64,20 @@ export function AddChoicesPanel({
         <div className="space-y-1">
           <Label className="text-sm text-slate-600">{questionLabel}</Label>
           <p className="text-xs text-slate-500">
-            ตั้งตัวเลือกให้ผู้เล่นตอบคำถาม (ขั้นต่ำ {minChoices} ตัวเลือก)
-            {disabled ? ' — คำถามถูกตั้งแล้ว' : ''}
+            Provide at least {minChoices} options for players to answer
+            {disabled ? ' — question already set' : ''}
           </p>
         </div>
 
         <div className="space-y-3">
           {localChoices.map((choice, index) => (
             <div key={index} className="space-y-1">
-              <Label className="text-xs text-slate-500">ตัวเลือก {index + 1}</Label>
+              <Label className="text-xs text-slate-500">Option {index + 1}</Label>
               <div className="flex gap-2">
                 <Input
                   value={choice}
                   onChange={(e) => handleChoiceChange(index, e.target.value)}
-                  placeholder={`ตัวเลือก ${index + 1}`}
+                  placeholder={`Option ${index + 1}`}
                   disabled={disabled}
                 />
                 <Button
@@ -86,7 +86,7 @@ export function AddChoicesPanel({
                   disabled={localChoices.length <= minChoices || disabled}
                   onClick={() => removeChoice(index)}
                 >
-                  ลบ
+                  Remove
                 </Button>
               </div>
             </div>
@@ -100,7 +100,7 @@ export function AddChoicesPanel({
           className="w-full"
           disabled={disabled}
         >
-          ➕ เพิ่มตัวเลือก
+          Add Option
         </Button>
 
         <div className="flex flex-wrap gap-3">
@@ -109,7 +109,7 @@ export function AddChoicesPanel({
             disabled={isSubmitDisabled}
             className="bg-slate-900 text-white hover:bg-slate-900/90"
           >
-            ตั้งค่าคำตอบ
+            Save Question
           </Button>
           {onStartGame && (
             <Button
@@ -117,7 +117,7 @@ export function AddChoicesPanel({
               disabled={!canStart}
               className="bg-emerald-600 hover:bg-emerald-600/90"
             >
-              🚀 เริ่มเกม
+              Start Game
             </Button>
           )}
         </div>

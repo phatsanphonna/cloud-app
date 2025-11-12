@@ -12,10 +12,10 @@ import { buildWsProtocols, buildWsUrl } from '@/lib/config'
 import { useUser as useGlobalUser } from '@/lib/user'
 
 const GAME_TYPES = [
-  { id: 'roll-dice', name: 'ทอยลูกเต๋า', description: 'ทายลูกเต๋า 6 หน้า' },
-  { id: 'spin-wheel', name: 'หมุนวงล้อ', description: 'สุ่มผู้โชคดี' },
-  { id: 'match-fixing', name: 'ตอบคำถาม', description: 'ตอบคำถาม' },
-  { id: 'vote', name: 'โหวต', description: 'โหวตตัวเลือก' }
+  { id: 'roll-dice', name: 'Roll Dice', description: 'Guess the six-sided die' },
+  { id: 'spin-wheel', name: 'Spin Wheel', description: 'Random winner takes all' },
+  { id: 'match-fixing', name: 'Match Fixing', description: 'Host-controlled Q&A' },
+  { id: 'vote', name: 'Vote', description: 'Choose the winning option' }
 ]
 
 interface User {
@@ -29,6 +29,7 @@ interface GameSession {
   roomId: string
   gameType: string
   status: string
+  hostId?: string
   totalPrizePool: number
   bets: Array<{
     id: string
@@ -58,6 +59,7 @@ export default function BettingPage() {
   const socketRef = useRef<WebSocket | null>(null)
 
   const hasUserBet = gameSession?.bets.some(bet => bet.playerId === user?.id)
+  const isMatchFixingHost = gameType === 'match-fixing' && !!gameSession?.hostId && gameSession.hostId === user?.id
 
   const redirectToGame = useCallback((session: GameSession | null) => {
     if (!session) return
@@ -168,16 +170,20 @@ export default function BettingPage() {
 
   const handlePlaceBet = async () => {
     if (!user || !gameSession || !ws) return
+    if (isMatchFixingHost) {
+      alert('Hosts cannot bet in the match-fixing game')
+      return
+    }
     
     if (betAmount > user.money) {
-      alert('เงินไม่เพียงพอ!')
+      alert('Insufficient balance')
       return
     }
 
-    // ตรวจสอบว่าต้องมีการทายหรือไม่
+    // Determine if a prediction is required
     const requiresPrediction = gameType === 'roll-dice' || gameType === 'vote'
     if (requiresPrediction && !prediction) {
-      alert('กรุณาใส่การทายผล!')
+      alert('Please enter your prediction')
       return
     }
 
@@ -191,14 +197,14 @@ export default function BettingPage() {
         prediction: prediction
       }))
       
-      // อัปเดตเงินผู้เล่น
+      // Update player balance locally
       const updatedUser = { ...user, money: user.money - betAmount }
       setUser(updatedUser)
       localStorage.setItem('user', JSON.stringify(updatedUser))
       
     } catch (error) {
       console.error('Error placing bet:', error)
-      alert('เกิดข้อผิดพลาดในการแทง!')
+      alert('Failed to place bet')
     } finally {
       setLoading(false)
     }
@@ -209,7 +215,7 @@ export default function BettingPage() {
       case 'roll-dice':
         return (
           <div className="space-y-2">
-            <Label>ทายลูกเต๋า (1-6)</Label>
+            <Label>Pick a number (1-6)</Label>
             <div className="grid grid-cols-6 gap-2">
               {[1, 2, 3, 4, 5, 6].map(num => (
                 <Button
@@ -228,26 +234,31 @@ export default function BettingPage() {
       case 'spin-wheel':
         return (
           <div className="space-y-2">
-            <Label>หมุนวงล้อ (ไม่ต้องทาย)</Label>
-            <p className="text-sm text-muted-foreground">เกมนี้จะสุ่มผู้ชนะ ไม่ต้องทายผล</p>
+            <Label>Spin Wheel</Label>
+            <p className="text-sm text-muted-foreground">This mode picks a random winner automatically.</p>
           </div>
         )
       
       case 'match-fixing':
         return (
           <div className="space-y-2">
-            <Label>ตอบคำถาม</Label>
+            <Label>Match Fixing</Label>
             <p className="text-sm text-muted-foreground">
-              รอให้โฮสต์ตั้งคำถามในหน้า Match Fixing หลังจากทุกคนเดิมพันแล้ว
+              Wait for the host to set the question in the Match Fixing screen after everyone has bet.
             </p>
+            {isMatchFixingHost && (
+              <p className="text-xs text-amber-600">
+                You are the host of this game, so you cannot bet.
+              </p>
+            )}
           </div>
         )
       
       case 'vote':
         return (
           <div className="space-y-2">
-            <Label>โหวต</Label>
-            <p className="text-sm text-muted-foreground">รอโฮสต์ตั้งตัวเลือก</p>
+            <Label>Vote</Label>
+            <p className="text-sm text-muted-foreground">Wait for the host to provide the options.</p>
           </div>
         )
       
@@ -267,7 +278,7 @@ export default function BettingPage() {
     return GAME_TYPES.find(type => type.id === gameType)
   }
 
-  if (!user) return <div>กำลังโหลด...</div>
+  if (!user) return <div>Loading…</div>
 
   return (
     <div className="min-h-screen p-4 text-black w-full">
@@ -279,68 +290,74 @@ export default function BettingPage() {
         <Card className="w-full max-w-md border shadow-md">
           <CardHeader className="text-center space-y-1">
             <CardTitle className="text-lg text-slate-900">
-              {getCurrentGameType()?.name} - การแทงเงิน
+              {getCurrentGameType()?.name} - Place your bet
             </CardTitle>
             <p className="text-sm text-slate-500">{getCurrentGameType()?.description}</p>
           </CardHeader>
 
           <CardContent className="space-y-5">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-              <p>ผู้เล่น: <span className="font-semibold text-slate-800">{user.name}</span></p>
-              <p>เงินคงเหลือ: <span className="font-semibold text-emerald-600">{user.money} บาท</span></p>
+              <p>Player: <span className="font-semibold text-slate-800">{user.name}</span></p>
+              <p>Balance: <span className="font-semibold text-emerald-600">{user.money}</span></p>
             </div>
 
             {gameSession && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-                <p>เงินรางวัลรวม: <span className="font-semibold text-amber-600">{gameSession.totalPrizePool} บาท</span></p>
-                <p>จำนวนผู้แทง: <span className="font-semibold text-slate-800">{gameSession.bets.length} คน</span></p>
+                <p>Prize pool: <span className="font-semibold text-amber-600">{gameSession.totalPrizePool}</span></p>
+                <p>Bets placed: <span className="font-semibold text-slate-800">{gameSession.bets.length}</span></p>
               </div>
             )}
 
             {!hasUserBet ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-slate-700">จำนวนเงินที่แทง</Label>
+                  <Label className="text-slate-700">Bet amount</Label>
                   <Input
                     type="number"
                     value={betAmount}
                     onChange={(e) => setBetAmount(Number(e.target.value))}
                     min="1"
                     max={user.money}
+                    disabled={isMatchFixingHost}
                   />
                 </div>
 
                 {renderPredictionInput()}
+                {isMatchFixingHost && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    Match Fixing hosts only reveal answers and cannot place bets.
+                  </div>
+                )}
 
                 <Button
                   onClick={handlePlaceBet}
-                  disabled={loading || betAmount <= 0 || betAmount > user.money}
+                  disabled={loading || betAmount <= 0 || betAmount > user.money || isMatchFixingHost}
                   className="w-full text-base text-white"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
                       <Spinner className="text-white" />
-                      กำลังแทง...
+                      Placing bet...
                     </span>
                   ) : (
-                    `แทงเงิน ${betAmount} บาท`
+                    `Bet ${betAmount}`
                   )}
                 </Button>
               </div>
             ) : (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-6 text-center text-emerald-700">
-                ✅ แทงเงินเรียบร้อยแล้ว<br />รอผู้เล่นคนอื่นแทงเงิน...
+                Bet placed.<br />Waiting for the remaining players…
               </div>
             )}
 
             {gameSession && gameSession.bets.length > 0 && (
               <div className="space-y-2 text-sm">
-                <Label className="text-slate-700">ผู้เล่นที่แทงแล้ว</Label>
+                <Label className="text-slate-700">Players who already bet</Label>
                 <div className="space-y-2">
                   {gameSession.bets.map(bet => (
                     <div key={bet.id} className="flex justify-between rounded border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-                      <span>ผู้เล่น {bet.playerId.slice(0, 6)}...</span>
-                      <span className="font-semibold">{bet.amount} บาท</span>
+                      <span>Player {bet.playerId.slice(0, 6)}...</span>
+                      <span className="font-semibold">{bet.amount}</span>
                     </div>
                   ))}
                 </div>

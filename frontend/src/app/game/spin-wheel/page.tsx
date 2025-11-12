@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import BackButton from '@/components/next/BackButton'
 import SpinWheel from '@/components/next/SpinWheel'
 import { buildWsProtocols, buildWsUrl } from '@/lib/config'
+import { GameShell } from '@/components/game/GameShell'
 
 interface Player {
   id: string
@@ -34,6 +34,7 @@ export default function SpinWheelGamePage() {
   const [ws, setWs] = useState<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [gameStatus, setGameStatus] = useState<'waiting' | 'spinning' | 'finished'>('waiting')
+  const [hostId, setHostId] = useState<string | null>(null)
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
   const [isWheelSpinning, setIsWheelSpinning] = useState(false)
   const [gameResult, setGameResult] = useState<GameResult | null>(null)
@@ -42,7 +43,7 @@ export default function SpinWheelGamePage() {
 
   const wheelItems = useMemo(() => players.map((player, index) => ({
     id: player.id,
-    label: player.id === user?.id ? 'คุณ' : `ผู้เล่น ${index + 1}`,
+    label: player.id === user?.id ? 'You' : `Player ${index + 1}`,
     color: WHEEL_COLORS[index % WHEEL_COLORS.length],
   })), [players, user?.id])
 
@@ -72,7 +73,7 @@ export default function SpinWheelGamePage() {
     websocket.onopen = () => {
       console.log('Connected to Spin Wheel game')
       setWs(websocket)
-      // ขอข้อมูลเกม
+      // Request current game state
       websocket.send(JSON.stringify({ type: 'get_game_status' }))
     }
 
@@ -84,6 +85,16 @@ export default function SpinWheelGamePage() {
         setPlayers(data.players)
         setTotalPrizePool(data.totalPrizePool)
         setGameStatus(data.gameStatus)
+        if (data.hostId) {
+          setHostId(data.hostId)
+        }
+        if (data.gameStatus === 'finished' && data.winnerId) {
+          setGameResult({
+            winnerId: data.winnerId,
+            winnerName: data.winnerName ?? 'Winner',
+            totalWinAmount: data.totalPrizePool
+          })
+        }
       }
       
       if (data.type === 'wheel_spinning') {
@@ -102,7 +113,7 @@ export default function SpinWheelGamePage() {
         setGameStatus('finished')
         setIsWheelSpinning(false)
         
-        // อัปเดตเงินผู้เล่นถ้าเป็นผู้ชนะ
+        // Update winner balance locally
         if (data.winnerId === user.id) {
           const updatedUser = { ...user, money: user.money + data.totalWinAmount }
           setUser(updatedUser)
@@ -122,7 +133,8 @@ export default function SpinWheelGamePage() {
   }, [user, gameId])
 
   const spinWheel = () => {
-    if (!ws || gameStatus !== 'waiting' || isWheelSpinning) return
+    const hostCanSpin = hostId && user?.id === hostId
+    if (!ws || gameStatus !== 'waiting' || isWheelSpinning || !hostCanSpin) return
     
     ws.send(JSON.stringify({ type: 'start_spin' }))
   }
@@ -135,13 +147,56 @@ export default function SpinWheelGamePage() {
     router.push(`/room/${roomId}`)
   }
 
-  if (!user || !roomId || !gameId) return <div>กำลังโหลด...</div>
+  if (!user || !roomId || !gameId) return <div>Loading…</div>
+
+  if (gameStatus === 'finished' && gameResult) {
+    return (
+      <div className="min-h-screen p-4 text-slate-900">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <BackButton />
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span className="font-semibold text-slate-700">Room</span>
+              <Badge variant="outline" className="font-mono text-xs uppercase tracking-wide">
+                {roomId}
+              </Badge>
+            </div>
+          </div>
+
+          <Card className="border shadow-md">
+            <CardHeader className="text-center space-y-1">
+              <CardTitle className="text-lg text-slate-800">Spin result</CardTitle>
+              <CardDescription className="text-sm text-slate-500">
+                Winner: {gameResult.winnerId === user.id ? 'You' : gameResult.winnerName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 text-center">
+              <div className="text-6xl">🏆</div>
+              <p className="text-base text-slate-700">
+                Prize: <span className="font-semibold text-slate-900">{gameResult.totalWinAmount}</span>
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button onClick={playAgain} className="bg-slate-900 hover:bg-slate-900/90">
+                  Choose another game
+                </Button>
+                <Button onClick={goToRoom} variant="outline">
+                  Return to room
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   const statusLabel = {
-    waiting: 'รอเริ่มหมุน',
-    spinning: 'กำลังหมุนอยู่',
-    finished: 'เกมจบแล้ว'
+    waiting: 'Waiting to spin',
+    spinning: 'Spinning',
+    finished: 'Finished'
   }[gameStatus]
+
+  const isHostUser = hostId !== null && user?.id === hostId
 
   return (
     <div className="min-h-screen p-4 text-slate-900">
@@ -158,15 +213,15 @@ export default function SpinWheelGamePage() {
 
         <div className="text-center space-y-1">
           <p className="text-sm text-slate-500 uppercase tracking-[0.2em]">Game Center</p>
-          <h1 className="text-3xl font-semibold tracking-wide">🎯 Spin Wheel Game</h1>
-          <p className="text-slate-500 text-sm">หมุนล้อรับเงินกองกลาง ใครได้ก็รับไปทั้งหมด</p>
+          <h1 className="text-3xl font-semibold tracking-wide">Spin Wheel Game</h1>
+          <p className="text-slate-500 text-sm">Spin the wheel—winner takes the entire pool.</p>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
           <Card className="border shadow-md">
             <CardHeader className="space-y-1 text-center">
-              <CardTitle className="text-lg text-slate-800">ล้อสุ่มผู้ชนะ</CardTitle>
-              <CardDescription className="text-sm text-slate-500">สถานะ: {statusLabel}</CardDescription>
+              <CardTitle className="text-lg text-slate-800">Wheel status</CardTitle>
+              <CardDescription className="text-sm text-slate-500">Status: {statusLabel}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6">
               <SpinWheel
@@ -181,19 +236,26 @@ export default function SpinWheelGamePage() {
                 }}
               />
 
-              {gameStatus === 'waiting' && (
+              {gameStatus === 'waiting' && isHostUser && (
                 <Button
                   onClick={spinWheel}
                   className="w-full bg-rose-600 hover:bg-rose-600/90 text-white text-base"
                   disabled={!ws || players.length === 0 || isWheelSpinning}
-                >
-                  🎯 หมุนล้อ
+      showToolbar={false}
+    >
+                  Spin the wheel
                 </Button>
+              )}
+
+              {gameStatus === 'waiting' && !isHostUser && (
+                <div className="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
+                  Waiting for the host to spin
+                </div>
               )}
 
               {isWheelSpinning && (
                 <div className="rounded-full border border-amber-200 px-4 py-1 text-sm text-amber-600">
-                  🌀 กำลังหมุนล้อ...
+                  Wheel is spinning…
                 </div>
               )}
             </CardContent>
@@ -202,26 +264,26 @@ export default function SpinWheelGamePage() {
           <div className="flex flex-col gap-5">
             <Card className="border shadow-sm">
               <CardHeader className="space-y-2">
-                <CardTitle className="text-lg text-slate-800">🏆 เงินรางวัลรวม</CardTitle>
-                <CardDescription className="text-sm text-slate-500">รับทั้งหมดเมื่อชนะ</CardDescription>
+                <CardTitle className="text-lg text-slate-800">Total prize pool</CardTitle>
+                <CardDescription className="text-sm text-slate-500">Winner receives everything</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-4xl font-bold text-slate-900">{totalPrizePool} บาท</p>
+                <p className="text-4xl font-bold text-slate-900">{totalPrizePool}</p>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  ผู้เข้าร่วม {players.length} คน
+                  Participants: {players.length}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border shadow-sm h-full">
               <CardHeader>
-                <CardTitle className="text-base text-slate-800">ผู้เข้าร่วมการแข่งขัน</CardTitle>
-                <CardDescription className="text-xs text-slate-500">ติดตามสถานะผู้ชนะ</CardDescription>
+                <CardTitle className="text-base text-slate-800">Players</CardTitle>
+                <CardDescription className="text-xs text-slate-500">Track who joins and wins</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 {players.length === 0 && (
                   <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
-                    ยังไม่มีผู้เล่นเข้าร่วม
+                    No players yet
                   </div>
                 )}
 
@@ -238,13 +300,13 @@ export default function SpinWheelGamePage() {
                           className="inline-flex h-4 w-4 rounded-full"
                           style={{ backgroundColor: WHEEL_COLORS[index % WHEEL_COLORS.length] }}
                         />
-                        {player.id === user.id ? 'คุณ' : `ผู้เล่น ${index + 1}`}
+                        {player.id === user.id ? 'You' : `Player ${index + 1}`}
                       </div>
                       {selectedPlayer === player.id && (
-                        <Badge className="bg-amber-400 text-[11px] text-black hover:bg-amber-400">👑 ผู้ชนะ</Badge>
+                        <Badge className="bg-amber-400 text-[11px] text-black hover:bg-amber-400">Winner</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500">แทง {player.betAmount} บาท</p>
+                    <p className="text-xs text-slate-500">Bet {player.betAmount}</p>
                   </div>
                 ))}
               </CardContent>
@@ -255,33 +317,33 @@ export default function SpinWheelGamePage() {
         {gameResult && (
           <Card className="border shadow-md">
             <CardHeader className="text-center space-y-1">
-              <CardTitle className="text-lg text-slate-800">🎉 ผลการแข่งขัน</CardTitle>
+              <CardTitle className="text-lg text-slate-800">Results</CardTitle>
               <CardDescription className="text-sm text-slate-500">
-                ผู้ชนะ: {gameResult.winnerId === user.id ? 'คุณ' : gameResult.winnerName}
+                Winner: {gameResult.winnerId === user.id ? 'You' : gameResult.winnerName}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 text-center">
               <div className="text-6xl">🏆</div>
               <p className="text-base text-slate-700">
-                รับเงินไปทั้งหมด <span className="font-semibold text-slate-900">{gameResult.totalWinAmount} บาท</span>
+                Prize: <span className="font-semibold text-slate-900">{gameResult.totalWinAmount}</span>
               </p>
 
               {gameResult.winnerId === user.id ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  🎊 ยินดีด้วย! คุณชนะแล้ว!
+                  Congratulations! You won.
                 </div>
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  😊 รอบหน้าลุ้นใหม่กันอีก
+                  Better luck next time.
                 </div>
               )}
 
               <div className="flex flex-wrap justify-center gap-3">
                 <Button onClick={playAgain} className="bg-slate-900 hover:bg-slate-900/90">
-                  🎮 กลับไปเลือกเกม
+                  Choose another game
                 </Button>
                 <Button onClick={goToRoom} variant="outline">
-                  🏠 กลับห้อง
+                  Return to room
                 </Button>
               </div>
             </CardContent>
@@ -291,8 +353,8 @@ export default function SpinWheelGamePage() {
         <div className="flex justify-center">
           <Card className="border shadow-sm">
             <CardContent className="p-4 text-center text-sm text-slate-600">
-              💰 เงินของคุณ:
-              <span className="ml-2 font-semibold text-slate-900">{user.money} บาท</span>
+              Balance:
+              <span className="ml-2 font-semibold text-slate-900">{user.money}</span>
             </CardContent>
           </Card>
         </div>

@@ -21,12 +21,12 @@ const SignInPage: NextPage = () => {
 
   const handleSignIn = async () => {
     if (!username) {
-      toast.error("กรุณากรอกชื่อผู้ใช้");
+      toast.error("Please enter a username");
       return;
     }
 
     if (!password) {
-      toast.error("กรุณากรอกรหัสผ่าน");
+      toast.error("Please enter a password");
       return;
     }
 
@@ -44,7 +44,7 @@ const SignInPage: NextPage = () => {
     } else if (status === 200) {
       toast.success(data.message);
     } else {
-      toast.error("เข้าสู่ระบบไม่สำเร็จ");
+      toast.error("Sign in failed");
     }
     setLoading(false);
   }
@@ -53,11 +53,11 @@ const SignInPage: NextPage = () => {
     <div className="flex flex-col gap-4 w-full max-w-md">
       <BackButton />
       <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-        เข้าสู่ระบบ
+        Sign in
       </h3>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor='username'>ชื่อผู้ใช้</Label>
+        <Label htmlFor='username'>Username</Label>
         <Input
           id='username'
           placeholder="Somchai007"
@@ -65,22 +65,22 @@ const SignInPage: NextPage = () => {
           onChange={(e) => setUsername(e.target.value)}
         />
 
-        <Label htmlFor='password'>รหัสผ่าน</Label>
+        <Label htmlFor='password'>Password</Label>
         <Input
           id='password'
           type="password"
-          placeholder="รหัสผ่านของคุณ"
+          placeholder="Your password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
         <Button onClick={handleSignIn} disabled={loading || !username || !password} className={buttonVariants({ variant: 'default' })}>
           {loading ? <Spinner /> : <LogIn />}
-          เข้าสู่ระบบผ่าน Cognito
+          Sign in with Cognito
         </Button>
       </div>
       <Link href='/register' className={buttonVariants({ variant: 'outline' })}>
-        สมัครสมาชิก
+        Create an account
       </Link>
     </div>
   )

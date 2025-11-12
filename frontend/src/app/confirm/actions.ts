@@ -11,20 +11,20 @@ export const confirmSignUp = async (username: string, confirmationCode: string) 
 
     return { 
       success: true, 
-      message: result.data.message || "ยืนยันอีเมลสำเร็จ!" 
+      message: result.data.message || "Email confirmed!" 
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const { response } = error;
       return { 
         success: false, 
-        message: response?.data?.message || "ยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" 
+        message: response?.data?.message || "Verification failed, please try again" 
       };
     }
 
     return { 
       success: false, 
-      message: "ยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" 
+      message: "Verification failed, please try again" 
     };
   }
 }
@@ -37,20 +37,20 @@ export const resendConfirmationCode = async (username: string) => {
 
     return { 
       success: true, 
-      message: result.data.message || "ส่งรหัสยืนยันไปยังอีเมลของคุณแล้ว!" 
+      message: result.data.message || "Verification code sent to your email!" 
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const { response } = error;
       return { 
         success: false, 
-        message: response?.data?.message || "ส่งรหัสซ้ำไม่สำเร็จ กรุณาลองอีกครั้ง" 
+        message: response?.data?.message || "Unable to resend the code, please try again" 
       };
     }
 
     return { 
       success: false, 
-      message: "ส่งรหัสซ้ำไม่สำเร็จ กรุณาลองอีกครั้ง" 
+      message: "Unable to resend the code, please try again" 
     };
   }
 }

@@ -318,6 +318,17 @@ export const BettingRoute = new Elysia({ prefix: "/betting" })
             return;
           }
 
+          const room = await getRoom(roomId);
+          if (!room) {
+            ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
+            return;
+          }
+
+          if (session.gameType === "match-fixing" && room.hostId === user.id) {
+            ws.send(JSON.stringify({ type: "error", message: "Host cannot bet in match-fixing game" }));
+            return;
+          }
+
           if (session.status !== "betting") {
             ws.send(JSON.stringify({ type: "error", message: "Betting is closed" }));
             return;
@@ -358,19 +369,29 @@ export const BettingRoute = new Elysia({ prefix: "/betting" })
           ws.send(betPlacedMessage);
           ws.publish(`betting:${roomId}`, betPlacedMessage);
 
-          const room = await getRoom(roomId);
-          let playerCount = 0;
+          let playerIds: string[] = [];
           if (room?.players) {
             if (Array.isArray(room.players)) {
-              playerCount = room.players.length;
+              playerIds = room.players;
             } else {
-              playerCount = Array.from(new Set(room.players as string[])).length;
+              playerIds = Array.from(new Set(room.players as string[]));
+            }
+          }
+
+          // unique list of players in room
+          const uniquePlayers = Array.from(new Set(playerIds));
+          let requiredBetCount = uniquePlayers.length;
+
+          if (updatedSession.gameType === "match-fixing") {
+            const hostId = room?.hostId ?? updatedSession.hostId;
+            if (hostId && uniquePlayers.includes(hostId) && requiredBetCount > 0) {
+              requiredBetCount -= 1; // host cannot bet, so exclude them
             }
           }
 
           if (
-            playerCount > 0 &&
-            updatedSession.bets.length >= playerCount
+            requiredBetCount > 0 &&
+            updatedSession.bets.length >= requiredBetCount
           ) {
             await updateGameStatus(updatedSession.id, "playing");
             const playingSession = await getGameSession(updatedSession.id);

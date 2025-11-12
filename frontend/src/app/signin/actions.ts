@@ -62,7 +62,7 @@ export const signInWithCognito = async (username: string, password: string) => {
       if (cognitoResult.message?.includes("not confirmed") || cognitoResult.message?.includes("UserNotConfirmedException")) {
         return { 
           data: { 
-            message: "ยังไม่ได้ยืนยันอีเมล กรุณาเช็กอีเมลเพื่อกรอกรหัสยืนยัน",
+            message: "Email not confirmed. Please check your inbox for the verification code.",
             requiresConfirmation: true,
             username 
           }, 
@@ -104,7 +104,7 @@ export const signInWithCognito = async (username: string, password: string) => {
       if (response?.status === 403 && response?.data?.requiresConfirmation) {
         return { 
           data: { 
-            message: "ยังไม่ได้ยืนยันอีเมล กรุณาเช็กอีเมลเพื่อกรอกรหัสยืนยัน",
+            message: "Email not confirmed. Please check your inbox for the verification code.",
             requiresConfirmation: true,
             username 
           }, 
