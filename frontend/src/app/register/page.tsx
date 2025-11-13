@@ -17,7 +17,6 @@ const RegisterPage: NextPage = () => {
   const [password, setPassword] = useState("")
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
-  const [useCognito, setUseCognito] = useState(true)
   const router = useRouter()
 
   const handleRegister = async () => {
@@ -26,24 +25,19 @@ const RegisterPage: NextPage = () => {
       return;
     }
 
-    if (useCognito && !password) {
+    if (!password) {
       toast.error("Please enter a password");
       return;
     }
 
-    if (useCognito && !email) {
+    if (!email) {
       toast.error("Please provide an email to register with Cognito");
       return;
     }
 
     setLoading(true);
-    
-    let result;
-    if (useCognito) {
-      result = await register(username, password, email);
-    } else {
-      result = await register(username, password);
-    }
+
+    const result = await register(username, password, email);
 
     console.log("Registration result:", result); // Debug log
 
@@ -52,9 +46,9 @@ const RegisterPage: NextPage = () => {
         toast.error(result.message);
       } else {
         toast.success(result.message);
-        
+
         // If Cognito registration successful, redirect to confirm page
-        if (useCognito && result.requiresConfirmation) {
+        if (result.requiresConfirmation) {
           setTimeout(() => {
             router.push(`/confirm?username=${encodeURIComponent(username)}&email=${encodeURIComponent(email)}`);
           }, 1000);
@@ -72,15 +66,6 @@ const RegisterPage: NextPage = () => {
       </h3>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="useCognito"
-            checked={useCognito}
-            onChange={(e) => setUseCognito(e.target.checked)}
-          />
-          <Label htmlFor="useCognito">Use Cognito authentication</Label>
-        </div>
 
         <Label htmlFor='username'>Username</Label>
         <Input
@@ -89,39 +74,35 @@ const RegisterPage: NextPage = () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        
-        {useCognito && (
-          <>
-            <Label htmlFor='password'>Password</Label>
-            <Input
-              id='password'
-              type="password"
-              placeholder="At least 8 characters with a number"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            
-            <Label htmlFor='email'>Email <span className="text-red-500">*</span></Label>
-            <Input
-              id='email'
-              type="email"
-              placeholder="you@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required={useCognito}
-            />
-            
-            {email && (
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                A verification code will be sent to this email
-              </p>
-            )}
-          </>
+        <Label htmlFor='password'>Password</Label>
+        <Input
+          id='password'
+          type="password"
+          placeholder="At least 8 characters with a number"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <Label htmlFor='email'>Email <span className="text-red-500">*</span></Label>
+        <Input
+          id='email'
+          type="email"
+          placeholder="you@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        {email && (
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            A verification code will be sent to this email
+          </p>
         )}
-        
-        <Button onClick={handleRegister} disabled={loading || !username || (useCognito && (!password || !email))}>
+
+
+        <Button onClick={handleRegister} disabled={loading || !username || !password || !email}>
           {loading && <Spinner />}
-          Create account{useCognito ? " with Cognito" : ""}
+          Create account with Cognito
         </Button>
       </div>
       <Link href='/signin' className={buttonVariants({ variant: 'outline' })}>

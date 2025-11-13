@@ -10,16 +10,9 @@ export default function Home() {
     <main className="min-h-screen w-full">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6 lg:px-8">
         <div className="text-center space-y-3">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">
-            Private mini games
-          </p>
           <h1 className="text-4xl font-semibold text-slate-900">
             Join or create a room
           </h1>
-          <p className="text-sm text-slate-600">
-            Your group can place bets inside the same lobby. Host a new session
-            or paste the invite code and jump right in.
-          </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
