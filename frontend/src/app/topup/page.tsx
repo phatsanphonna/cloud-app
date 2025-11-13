@@ -11,7 +11,7 @@ import { useUser } from "@/lib/user";
 // map to WheelItem<number>[]
 const AMOUNTS: WheelItem<number>[] = [5, 10, 15, 20, 25, 30, 40, 50].map(amount => ({
   id: amount,
-  label: `THB ${amount}`,
+  label: `${amount}`,
   value: amount,
 }));
 
