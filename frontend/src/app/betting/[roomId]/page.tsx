@@ -281,13 +281,13 @@ export default function BettingPage() {
   if (!user) return <div>Loading…</div>
 
   return (
-    <div className="min-h-screen p-4 text-black w-full">
-      <div className="mx-auto flex w-full flex-col gap-4">
+    <div className="min-h-screen w-full p-4 text-black">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
         <div className="flex items-center justify-between">
           <BackButton />
         </div>
 
-        <Card className="w-full max-w-md border shadow-md">
+        <Card className="w-full max-w-md self-center border shadow-md">
           <CardHeader className="text-center space-y-1">
             <CardTitle className="text-lg text-slate-900">
               {getCurrentGameType()?.name} - Place your bet

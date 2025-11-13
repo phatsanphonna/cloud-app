@@ -59,7 +59,7 @@ const RegisterPage: NextPage = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full max-w-md">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4">
       <BackButton />
       <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
         Create an account

@@ -8,9 +8,9 @@ interface Props {
 
 const GameLayout: FC<Props> = ({ children }) => {
   return (
-    <div className="min-h-screen w-full px-4 pb-12 pt-16 sm:px-8 sm:pt-20">
+    <section className="min-h-screen w-full pb-12 pt-16 sm:pt-20">
       {children}
-    </div>
+    </section>
   );
 };
 

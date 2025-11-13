@@ -26,10 +26,10 @@ const WHEEL_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#F
 export default function SpinWheelGamePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+
   const roomId = searchParams.get('roomId')
   const gameId = searchParams.get('gameId')
-  
+
   const [user, setUser] = useState<any>(null)
   const [ws, setWs] = useState<WebSocket | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
@@ -69,7 +69,7 @@ export default function SpinWheelGamePage() {
     if (!token) return
 
     const websocket = new WebSocket(buildWsUrl(`/game/spin-wheel/ws/${gameId}`), buildWsProtocols(token))
-    
+
     websocket.onopen = () => {
       console.log('Connected to Spin Wheel game')
       setWs(websocket)
@@ -80,7 +80,7 @@ export default function SpinWheelGamePage() {
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data)
       console.log('Received Spin Wheel message:', data)
-      
+
       if (data.type === 'game_status') {
         setPlayers(data.players)
         setTotalPrizePool(data.totalPrizePool)
@@ -96,14 +96,14 @@ export default function SpinWheelGamePage() {
           })
         }
       }
-      
+
       if (data.type === 'wheel_spinning') {
         setGameStatus('spinning')
         setIsWheelSpinning(true)
         setSelectedPlayer(data.winnerId)
         setWheelTrigger({ id: data.winnerId, nonce: Date.now() })
       }
-      
+
       if (data.type === 'game_finished') {
         setGameResult({
           winnerId: data.winnerId,
@@ -112,7 +112,7 @@ export default function SpinWheelGamePage() {
         })
         setGameStatus('finished')
         setIsWheelSpinning(false)
-        
+
         // Update winner balance locally
         if (data.winnerId === user.id) {
           const updatedUser = { ...user, money: user.money + data.totalWinAmount }
@@ -135,7 +135,7 @@ export default function SpinWheelGamePage() {
   const spinWheel = () => {
     const hostCanSpin = hostId && user?.id === hostId
     if (!ws || gameStatus !== 'waiting' || isWheelSpinning || !hostCanSpin) return
-    
+
     ws.send(JSON.stringify({ type: 'start_spin' }))
   }
 
@@ -154,7 +154,7 @@ export default function SpinWheelGamePage() {
       <div className="min-h-screen p-4 text-slate-900">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <BackButton />
+            {/* <BackButton /> */}
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <span className="font-semibold text-slate-700">Room</span>
               <Badge variant="outline" className="font-mono text-xs uppercase tracking-wide">
@@ -202,7 +202,7 @@ export default function SpinWheelGamePage() {
     <div className="min-h-screen p-4 text-slate-900">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pt-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <BackButton />
+          {/* <BackButton /> */}
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <span className="font-semibold text-slate-700">Room</span>
             <Badge variant="outline" className="font-mono text-xs uppercase tracking-wide">
@@ -236,16 +236,16 @@ export default function SpinWheelGamePage() {
                 }}
               />
 
-              {gameStatus === 'waiting' && isHostUser && (
+              {/* {gameStatus === 'waiting' && isHostUser && (
                 <Button
                   onClick={spinWheel}
                   className="w-full bg-rose-600 hover:bg-rose-600/90 text-white text-base"
                   disabled={!ws || players.length === 0 || isWheelSpinning}
-      showToolbar={false}
-    >
+                  showToolbar={false}
+                >
                   Spin the wheel
                 </Button>
-              )}
+              )} */}
 
               {gameStatus === 'waiting' && !isHostUser && (
                 <div className="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
@@ -290,9 +290,8 @@ export default function SpinWheelGamePage() {
                 {players.map((player, index) => (
                   <div
                     key={player.id}
-                    className={`rounded-lg border px-3 py-2 text-sm transition ${
-                      selectedPlayer === player.id ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white'
-                    }`}
+                    className={`rounded-lg border px-3 py-2 text-sm transition ${selectedPlayer === player.id ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white'
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 font-semibold text-slate-800">
